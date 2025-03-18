@@ -1,5 +1,5 @@
 // src/entities/enemy/Enemy.js
-import Entity from '../Entity';
+import Entity from './Entity';
 
 /**
  * Clase que representa un enemigo en el juego

@@ -1,9 +1,9 @@
 // src/entities/player/Player.js
-import Entity from '../Entity';
-import PlayerStats from './PlayerStats';
-import PlayerEquipment from './PlayerEquipment';
-import PlayerVisuals from './PlayerVisuals';
-import PlayerAbilities from './PlayerAbilities';
+import Entity from './Entity';
+import PlayerStats from './player/PlayerStats';
+import PlayerEquipment from './player/PlayerEquipement';
+import PlayerVisuals from './player/PlayerVisuals';
+import PlayerAbilities from './player/PlayerAbilities';
 
 /**
  * Clase que representa al jugador en el juego
