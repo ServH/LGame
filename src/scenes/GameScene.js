@@ -870,4 +870,70 @@ export default class GameScene extends Phaser.Scene {
         button.setFillStyle(0x444444);
       });
       
-      button
+      button.on('pointerdown', () => {
+        this.selectBranch(index);
+        this.closeBranchChoice([overlay, title, ...optionButtons.flat()]);
+      });
+    });
+  }
+
+  /**
+   * Cierra la interfaz de elección de camino
+   * @param {Array} elements - Elementos a eliminar
+   */
+  closeBranchChoice(elements) {
+    // Animar la desaparición de los elementos
+    this.tweens.add({
+      targets: elements,
+      alpha: 0,
+      duration: 300,
+      onComplete: () => {
+        // Destruir elementos
+        elements.forEach(element => element.destroy());
+        
+        // Reanudar el movimiento
+        this.pathSystem.startLoop(this.player);
+      }
+    });
+  }
+
+  /**
+   * Selecciona una rama del camino
+   * @param {number} branchIndex - Índice de la rama seleccionada
+   */
+  selectBranch(branchIndex) {
+    // Ejecutar el efecto de la rama seleccionada
+    const options = [
+      {
+        text: 'Camino de tesoros',
+        effect: () => {
+          // Crear más eventos de tesoro
+          for (let i = this.currentNodeIndex + 2; i < this.currentNodeIndex + 10; i += 3) {
+            if (i < this.pathSystem.path.length) {
+              this.createRandomEvent(i);
+            }
+          }
+          
+          // Pero también enemigos más fuertes
+          this.entitySystem.spawnEnemiesOnPath(
+            this.pathSystem.path.slice(this.currentNodeIndex + 1),
+            100,
+            () => Math.random() < 0.3
+          );
+        }
+      },
+      {
+        text: 'Camino seguro',
+        effect: () => {
+          // Menos enemigos pero también menos recompensas
+          // Implementación sencilla para el MVP
+        }
+      }
+    ];
+    
+    // Ejecutar el efecto de la opción seleccionada
+    if (options[branchIndex] && options[branchIndex].effect) {
+      options[branchIndex].effect();
+    }
+  }
+}

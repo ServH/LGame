@@ -811,4 +811,468 @@ export default class UIScene extends Phaser.Scene {
       }
     });
   }
+  // Extensiones para UIScene.js - Añadir estas funciones
+
+/**
+ * Crea el panel de información de combate
+ * @param {number} x - Posición X
+ * @param {number} y - Posición Y
+ * @param {number} width - Ancho
+ * @param {number} height - Alto
+ */
+createCombatInfoPanel(x, y, width, height) {
+  // Fondo del panel
+  this.combatInfoPanel = {
+    background: this.add.rectangle(
+      x + width / 2,
+      y + height / 2,
+      width,
+      height,
+      0x000000,
+      0.7
+    ),
+    title: this.add.text(
+      x + 10,
+      y + 10,
+      'COMBATE',
+      {
+        font: 'bold 14px Arial',
+        fill: '#ffffff'
+      }
+    ),
+    status: this.add.text(
+      x + 10,
+      y + 35,
+      'No hay combate activo',
+      {
+        font: '12px Arial',
+        fill: '#aaaaaa'
+      }
+    ),
+    enemyInfo: this.add.text(
+      x + 10,
+      y + 55,
+      '',
+      {
+        font: '12px Arial',
+        fill: '#ffffff'
+      }
+    ),
+    controls: []
+  };
+  
+  // Botones de control
+  const controlLabels = [
+    { text: 'Auto', key: 'auto' },
+    { text: 'Pausa', key: 'pause' },
+    { text: 'Huir', key: 'flee' }
+  ];
+  
+  // Crear botones de control
+  controlLabels.forEach((control, index) => {
+    const buttonX = x + 20 + index * (width / 3);
+    const buttonY = y + height - 25;
+    
+    // Fondo del botón
+    const button = this.add.rectangle(
+      buttonX,
+      buttonY,
+      width / 3 - 15,
+      20,
+      0x444444
+    );
+    button.setInteractive();
+    
+    // Texto del botón
+    const text = this.add.text(
+      buttonX,
+      buttonY,
+      control.text,
+      {
+        font: '10px Arial',
+        fill: '#ffffff'
+      }
+    );
+    text.setOrigin(0.5);
+    
+    // Eventos
+    button.on('pointerover', () => {
+      button.setFillStyle(0x666666);
+    });
+    
+    button.on('pointerout', () => {
+      button.setFillStyle(0x444444);
+    });
+    
+    button.on('pointerdown', () => {
+      this.handleCombatControl(control.key);
+    });
+    
+    // Añadir al panel
+    this.combatInfoPanel.controls.push({ button, text, key: control.key });
+  });
+  
+  // Inicialmente invisible
+  this.setCombatPanelVisible(false);
+}
+
+/**
+ * Muestra u oculta el panel de combate
+ * @param {boolean} visible - Si debe ser visible
+ */
+setCombatPanelVisible(visible) {
+  if (!this.combatInfoPanel) return;
+  
+  this.combatInfoPanel.background.setVisible(visible);
+  this.combatInfoPanel.title.setVisible(visible);
+  this.combatInfoPanel.status.setVisible(visible);
+  this.combatInfoPanel.enemyInfo.setVisible(visible);
+  
+  this.combatInfoPanel.controls.forEach(control => {
+    control.button.setVisible(visible);
+    control.text.setVisible(visible);
+  });
+}
+
+/**
+ * Actualiza la información de combate
+ * @param {Object} combatInfo - Información del combate actual
+ */
+updateCombatInfo(combatInfo) {
+  if (!this.combatInfoPanel) return;
+  
+  // Si no hay combate activo
+  if (!combatInfo) {
+    this.combatInfoPanel.status.setText('No hay combate activo');
+    this.combatInfoPanel.enemyInfo.setText('');
+    return;
+  }
+  
+  // Actualizar estado
+  const { enemy, isAutoCombat } = combatInfo;
+  
+  this.combatInfoPanel.status.setText(`Estado: ${isAutoCombat ? 'Automático' : 'Manual'}`);
+  
+  // Información del enemigo
+  if (enemy && enemy.isActive()) {
+    let enemyInfo = `${enemy.enemyType || 'Enemigo'} Nv.${enemy.stats.level || 1}\n`;
+    enemyInfo += `Vida: ${Math.ceil(enemy.stats.health)}/${enemy.stats.maxHealth}\n`;
+    enemyInfo += `Atq: ${enemy.stats.attack.toFixed(1)} Def: ${enemy.stats.defense.toFixed(1)}`;
+    
+    this.combatInfoPanel.enemyInfo.setText(enemyInfo);
+  } else {
+    this.combatInfoPanel.enemyInfo.setText('');
+  }
+  
+  // Actualizar botones según estado
+  this.combatInfoPanel.controls.forEach(control => {
+    if (control.key === 'auto') {
+      control.text.setStyle({ 
+        fill: isAutoCombat ? '#ffff00' : '#ffffff' 
+      });
+    }
+  });
+}
+
+/**
+ * Maneja los controles de combate
+ * @param {string} controlKey - Clave del control activado
+ */
+handleCombatControl(controlKey) {
+  // Obtener referencia a la escena principal
+  const gameScene = this.scene.get('GameScene');
+  
+  switch (controlKey) {
+    case 'auto':
+      // Alternar modo automático
+      gameScene.combatSystem.toggleAutoCombat();
+      break;
+    case 'pause':
+      // Pausar combate
+      gameScene.combatSystem.pauseCombat();
+      break;
+    case 'flee':
+      // Intentar huir del combate
+      gameScene.combatSystem.attemptFlee();
+      break;
+  }
+}
+
+/**
+ * Muestra una notificación de combate
+ * @param {string} text - Texto de la notificación
+ * @param {Object} options - Opciones de la notificación
+ */
+showCombatNotification(text, options = {}) {
+  const {
+    duration = 2000,
+    color = '#ffffff',
+    fontSize = 14,
+    x = this.cameras.main.width / 2,
+    y = this.cameras.main.height / 2
+  } = options;
+  
+  // Crear texto
+  const notification = this.add.text(x, y, text, {
+    font: `${fontSize}px Arial`,
+    fill: color,
+    stroke: '#000000',
+    strokeThickness: 3
+  });
+  notification.setOrigin(0.5);
+  notification.setDepth(200);
+  
+  // Animar aparición
+  notification.setAlpha(0);
+  this.tweens.add({
+    targets: notification,
+    alpha: 1,
+    y: y - 20,
+    duration: 300,
+    onComplete: () => {
+      // Mantener visible
+      this.time.delayedCall(duration, () => {
+        // Animar desaparición
+        this.tweens.add({
+          targets: notification,
+          alpha: 0,
+          y: y - 40,
+          duration: 300,
+          onComplete: () => {
+            notification.destroy();
+          }
+        });
+      });
+    }
+  });
+}
+
+// Extensiones para CombatSystem.js - Mejoras de control
+
+/**
+ * Pausa el combate actual
+ */
+pauseCombat() {
+  // Guardar estado de auto combate para restaurar al reanudar
+  this._autoCombatState = this.autoCombat;
+  this.autoCombat = false;
+  
+  // Notificar
+  this.scene.events.emit('combat-paused');
+  
+  // Mostrar mensaje
+  if (this.scene.events) {
+    this.scene.events.emit('show-combat-notification', 'Combate en pausa', {
+      color: '#ffff00'
+    });
+  }
+}
+
+/**
+ * Reanuda el combate
+ */
+resumeCombat() {
+  // Restaurar estado de auto combate
+  this.autoCombat = this._autoCombatState || false;
+  
+  // Notificar
+  this.scene.events.emit('combat-resumed');
+  
+  // Mostrar mensaje
+  if (this.scene.events) {
+    this.scene.events.emit('show-combat-notification', 'Combate reanudado', {
+      color: '#00ff00'
+    });
+  }
+}
+
+/**
+ * Alterna el modo de combate automático
+ */
+toggleAutoCombat() {
+  this.autoCombat = !this.autoCombat;
+  
+  // Notificar
+  this.scene.events.emit('combat-auto-toggled', this.autoCombat);
+  
+  // Mostrar mensaje
+  if (this.scene.events) {
+    this.scene.events.emit('show-combat-notification', 
+      `Modo ${this.autoCombat ? 'automático' : 'manual'} activado`, {
+      color: this.autoCombat ? '#00ff00' : '#ffff00'
+    });
+  }
+}
+
+/**
+ * Intenta huir del combate actual
+ * @returns {boolean} - Si tuvo éxito la huida
+ */
+attemptFlee() {
+  // Verificar si hay combate activo
+  if (!this.activeCombats.size) return false;
+  
+  // Obtener el primer combate activo (para simplicidad)
+  const combatId = this.activeCombats.keys().next().value;
+  const combat = this.activeCombats.get(combatId);
+  
+  if (!combat) return false;
+  
+  // Probabilidad base de huida
+  let fleeChance = 0.6; // 60% base
+  
+  // Modificadores
+  if (combat.attacker.type === 'player') {
+    // La velocidad del jugador influye
+    fleeChance += (combat.attacker.stats.speed - combat.defender.stats.speed) * 0.1;
+    
+    // Penalización si el enemigo es un jefe
+    if (combat.defender.isBoss) {
+      fleeChance *= 0.5;
+    }
+  }
+  
+  // Limitar entre 0.1 (10%) y 0.9 (90%)
+  fleeChance = Math.max(0.1, Math.min(0.9, fleeChance));
+  
+  // Intentar huir
+  const success = Math.random() < fleeChance;
+  
+  if (success) {
+    // Huida exitosa
+    this.endCombat(combatId, null, null);
+    
+    // Notificar éxito
+    if (this.scene.events) {
+      this.scene.events.emit('show-combat-notification', '¡Huida exitosa!', {
+        color: '#00ff00'
+      });
+    }
+    
+    // Evento de huida
+    this.scene.events.emit('combat-fled', true);
+  } else {
+    // Falló la huida
+    if (this.scene.events) {
+      this.scene.events.emit('show-combat-notification', 'No puedes huir', {
+        color: '#ff0000'
+      });
+    }
+    
+    // Evento de huida fallida
+    this.scene.events.emit('combat-fled', false);
+    
+    // Penalización: el enemigo ataca inmediatamente
+    if (combat.defender.isActive() && combat.attacker.type === 'player') {
+      this.scene.time.delayedCall(200, () => {
+        combat.defender.attack(combat.attacker);
+      });
+    }
+  }
+  
+  return success;
+}
+
+// Inicialización del sistema de combate mejorado (añadir al constructor)
+/* 
+  // Estado del combate automático
+  this.autoCombat = true;
+  
+  // Conexión con la UI
+  this.setupCombatUI();
+*/
+
+/**
+ * Configura la conexión con la interfaz de usuario
+ */
+setupCombatUI() {
+  // Eventos para la UI
+  this.scene.events.on('show-combat-notification', (text, options) => {
+    // Reenviar a la escena UI
+    this.scene.scene.get('UIScene').showCombatNotification(text, options);
+  });
+  
+  // Actualizar UI cuando cambia el estado de combate
+  this.scene.events.on('combat-started', (attacker, defender) => {
+    // Mostrar panel de combate
+    const ui = this.scene.scene.get('UIScene');
+    if (ui.setCombatPanelVisible) {
+      ui.setCombatPanelVisible(true);
+      
+      // Actualizar información
+      if (ui.updateCombatInfo) {
+        ui.updateCombatInfo({
+          enemy: attacker.type === 'player' ? defender : attacker,
+          isAutoCombat: this.autoCombat
+        });
+      }
+    }
+    
+    // Mostrar notificación
+    const enemyName = (attacker.type === 'player' ? defender : attacker).enemyType || 'Enemigo';
+    this.scene.events.emit('show-combat-notification', 
+      `¡Combate iniciado!\n${enemyName}`, {
+      color: '#ff0000',
+      duration: 1500
+    });
+  });
+  
+  // Actualizar cuando finaliza el combate
+  this.scene.events.on('entity-died', (entity) => {
+    if (entity.type === 'enemy' && this.activeCombats.size === 0) {
+      // Ocultar panel si no quedan combates activos
+      const ui = this.scene.scene.get('UIScene');
+      if (ui.setCombatPanelVisible) {
+        ui.setCombatPanelVisible(false);
+      }
+    }
+  });
+  
+  // Actualizar cuando cambia el modo automático
+  this.scene.events.on('combat-auto-toggled', (isAuto) => {
+    const ui = this.scene.scene.get('UIScene');
+    if (ui.updateCombatInfo && this.activeCombats.size > 0) {
+      // Obtener el primer combate activo
+      const combatId = this.activeCombats.keys().next().value;
+      const combat = this.activeCombats.get(combatId);
+      
+      ui.updateCombatInfo({
+        enemy: combat.attacker.type === 'player' ? combat.defender : combat.attacker,
+        isAutoCombat: isAuto
+      });
+    }
+  });
+}
+
+// Modificaciones a la función de actualización para manejar combate automático
+/*
+update(delta) {
+  // Actualizar líneas de combate (código existente)
+  
+  // Gestionar combate automático
+  if (this.autoCombat) {
+    this.updateAutoCombat(delta);
+  }
+}
+*/
+
+/**
+ * Actualiza la lógica de combate automático
+ * @param {number} delta - Tiempo transcurrido
+ */
+updateAutoCombat(delta) {
+  // Procesar cada combate activo
+  this.activeCombats.forEach((combat) => {
+    const { attacker, defender } = combat;
+    
+    // Solo manejar combates donde el jugador es atacante
+    if (attacker.type === 'player' && attacker.isActive() && defender.isActive()) {
+      // Verificar si puede atacar
+      if (attacker.actionCooldown <= 0) {
+        // Atacar automáticamente
+        attacker.attack(defender);
+      }
+    }
+  });
+}
 }
