@@ -6,11 +6,13 @@ export default class PathSystem {
     this.pathGraphics = scene.add.graphics();
     this.loopActive = false;
     this.currentNodeIndex = 0;
-    this.movementSpeed = 60; // píxeles por segundo
-    this.nodeReachedDistance = 10; // Aumentado para evitar saltos
+    this.movementSpeed = 80; // Aumentado para mejor respuesta
+    this.nodeReachedDistance = 15; // Aumentado para evitar saltos
     this.pathColor = 0x555555;
     this.pathWidth = 16;
     this.speedMultiplier = 1;
+    this._lastUpdateTime = null;
+    this._eventCounter = 0;
     
     console.log('PathSystem inicializado con movementSpeed:', this.movementSpeed);
     console.log('PathSystem inicializado con nodeReachedDistance:', this.nodeReachedDistance);
@@ -136,6 +138,14 @@ export default class PathSystem {
    */
   setSpeedMultiplier(multiplier) {
     const oldMultiplier = this.speedMultiplier;
+    
+    // Limitar velocidad máxima para evitar problemas
+    const MAX_SPEED = 4;
+    if (multiplier > MAX_SPEED) {
+      console.warn(`PathSystem: Velocidad solicitada ${multiplier}x demasiado alta. Limitando a ${MAX_SPEED}x`);
+      multiplier = MAX_SPEED;
+    }
+    
     this.speedMultiplier = multiplier;
     console.log(`PathSystem: Velocidad cambiada de ${oldMultiplier}x a ${multiplier}x`);
   }
@@ -147,20 +157,13 @@ export default class PathSystem {
   update(delta) {
     if (!this.loopActive || !this.entity || this.path.length === 0) return;
     
-    // Añadir LOG: Verificar delta y speedMultiplier
-    if (this.entity.type === 'player' && Math.random() < 0.05) {
-      console.log(`PathSystem: delta=${delta}, speedMultiplier=${this.speedMultiplier}`);
-    }
+    // SOLUCIÓN DE EMERGENCIA: Usar siempre un delta constante para estabilidad
+    delta = 16; // Delta fijo de 16ms (aproximadamente 60fps)
     
     const targetNode = this.path[this.currentNodeIndex];
     const dx = targetNode.x - this.entity.x;
     const dy = targetNode.y - this.entity.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // LOG: Verificar distancia al nodo y nodeReachedDistance
-    if (this.entity.type === 'player' && distance < this.nodeReachedDistance * 2 && Math.random() < 0.1) {
-      console.log(`Distancia al nodo: ${distance}, umbral: ${this.nodeReachedDistance}`);
-    }
     
     // Si llegamos al nodo objetivo, avanzamos al siguiente
     if (distance < this.nodeReachedDistance) {
@@ -170,16 +173,16 @@ export default class PathSystem {
       
       this.currentNodeIndex = (this.currentNodeIndex + 1) % this.path.length;
       
-      // LOG: Nodo alcanzado
-      console.log(`Nodo alcanzado: ${this.currentNodeIndex}, total nodos: ${this.path.length}`);
-      
-      // Disparar evento de nodo alcanzado
-      this.scene.events.emit('path-node-reached', this.currentNodeIndex);
-      
-      // Si completamos un loop
-      if (this.currentNodeIndex === 0) {
-        console.log("¡Loop completado!");
-        this.scene.events.emit('loop-completed');
+      // Limitar la emisión de eventos para no saturar
+      this._eventCounter = (this._eventCounter || 0) + 1;
+      if (this._eventCounter % 2 === 0 || this.currentNodeIndex === 0) {
+        // Disparar evento de nodo alcanzado
+        this.scene.events.emit('path-node-reached', this.currentNodeIndex);
+        
+        // Si completamos un loop
+        if (this.currentNodeIndex === 0) {
+          this.scene.events.emit('loop-completed');
+        }
       }
       
       return;
@@ -189,46 +192,23 @@ export default class PathSystem {
     const normalizedDx = dx / distance;
     const normalizedDy = dy / distance;
     
-    // Velocidad ajustada por el delta time para movimiento constante
-    const adjustedDelta = delta / 1000; // Convertir a segundos
-    const actualSpeed = this.movementSpeed * this.speedMultiplier * adjustedDelta;
+    // Usar una velocidad BASE FIJA en vez de depender completamente del delta
+    const baseSpeed = 2; // Velocidad base constante
+    const speedFactor = this.speedMultiplier * (delta / 16);
+    const actualSpeed = baseSpeed * speedFactor;
     
-    // LOG: Verificar velocidad aplicada
-    if (this.entity.type === 'player' && Math.random() < 0.02) {
-      console.log(`Velocidad aplicada: ${actualSpeed}, movSpeed: ${this.movementSpeed}, delta: ${adjustedDelta}`);
-    }
+    // Calcular el desplazamiento en cada eje con un máximo para evitar saltos
+    const maxStep = this.nodeReachedDistance * 0.5;
+    const moveX = Math.min(maxStep, normalizedDx * actualSpeed);
+    const moveY = Math.min(maxStep, normalizedDy * actualSpeed);
     
-    // Antes de actualizar las coordenadas - guardar posición anterior para log
-    const oldX = this.entity.x;
-    const oldY = this.entity.y;
+    // Movimiento con límite de seguridad
+    this.entity.x += moveX;
+    this.entity.y += moveY;
     
-    // Calcular el desplazamiento en cada eje
-    const moveX = normalizedDx * actualSpeed;
-    const moveY = normalizedDy * actualSpeed;
-    
-    // Verificar que el movimiento no exceda la distancia al nodo objetivo
-    if (Math.abs(moveX) > Math.abs(dx) || Math.abs(moveY) > Math.abs(dy)) {
-      // Si el movimiento calculado sobrepasa el nodo, simplemente ir al nodo
-      this.entity.x = targetNode.x;
-      this.entity.y = targetNode.y;
-      console.log("Movimiento excesivo corregido - saltando directamente al nodo");
-    } else {
-      // Movimiento normal
-      this.entity.x += moveX;
-      this.entity.y += moveY;
-    }
-    
-    // LOG: Verificar cambio de posición
-    if (this.entity.type === 'player' && (Math.random() < 0.01)) {
-      console.log(`Posición: (${oldX.toFixed(2)}, ${oldY.toFixed(2)}) -> (${this.entity.x.toFixed(2)}, ${this.entity.y.toFixed(2)}), movimiento: (${moveX.toFixed(2)}, ${moveY.toFixed(2)})`);
-    }
-    
-    // Actualizar orientación de la entidad - verificar si tiene el método setFlipX
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // Cambiar la orientación del sprite si existe el método setFlipX
-      if (this.entity.sprite && typeof this.entity.sprite.setFlipX === 'function') {
-        this.entity.sprite.setFlipX(dx < 0);
-      }
+    // Actualizar orientación de la entidad
+    if (Math.abs(dx) > Math.abs(dy) && this.entity.sprite && typeof this.entity.sprite.setFlipX === 'function') {
+      this.entity.sprite.setFlipX(dx < 0);
     }
   }
 

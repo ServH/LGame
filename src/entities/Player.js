@@ -92,14 +92,34 @@ export default class Player extends Entity {
     }
   }
 
-  /**
-   * Sobrescribe la obtención de estadísticas para incluir bonificaciones
-   * @returns {Object} Estadísticas con modificadores
-   */
-  get stats() {
-    // Version defensiva
+/**
+ * Sobrescribe la obtención de estadísticas para incluir bonificaciones
+ * @returns {Object} Estadísticas con modificadores
+ */
+get stats() {
+  // Version defensiva contra recursión
+  if (this._gettingStats) {
+    // Prevenir recursión infinita
+    console.warn("Detectada recursión en stats getter, devolviendo valores crudos");
+    return this._stats || super.stats || {
+      health: 20,
+      maxHealth: 20,
+      attack: 3,
+      defense: 1,
+      speed: 1.2,
+      level: 1,
+      experience: 0
+    };
+  }
+  
+  // Marcar que estamos en el getter para evitar recursión
+  this._gettingStats = true;
+  
+  let result;
+  try {
+    // No existe el sistema de estadísticas
     if (!this.statsManager) {
-      return this._stats || super.stats || {
+      result = this._stats || super.stats || {
         health: 20,
         maxHealth: 20,
         attack: 3,
@@ -108,9 +128,27 @@ export default class Player extends Entity {
         level: 1,
         experience: 0
       };
+    } else {
+      result = this.statsManager.getStats();
     }
-    return this.statsManager.getStats();
+  } catch (e) {
+    console.error("Error obteniendo estadísticas:", e);
+    result = this._stats || {
+      health: 20,
+      maxHealth: 20,
+      attack: 3,
+      defense: 1,
+      speed: 1.2,
+      level: 1,
+      experience: 0
+    };
+  } finally {
+    // Restablecer el indicador después de obtener las estadísticas
+    this._gettingStats = false;
   }
+  
+  return result;
+}
 
   /**
    * Inicia combate con un enemigo

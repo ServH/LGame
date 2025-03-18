@@ -9,6 +9,8 @@ export default class EntitySystem {
     this.player = null;
     this.enemies = [];
     this.nextEntityId = 1;
+    this.speedMultiplier = 1;
+    this.isPaused = false;
   }
 
   /**
@@ -24,6 +26,10 @@ export default class EntitySystem {
     
     // Añadir a la lista de entidades
     this.entities.set('player', this.player);
+    
+    console.log(`EntitySystem: Jugador creado en (${x}, ${y}) con estadísticas:`, 
+                `salud=${stats.health || 'default'}`, 
+                `ataque=${stats.attack || 'default'}`);
     
     return this.player;
   }
@@ -43,6 +49,11 @@ export default class EntitySystem {
     // Añadir a las listas
     this.entities.set(enemyId, enemy);
     this.enemies.push(enemy);
+    
+    // Log para depuración (limitado a no saturar la consola)
+    if (this.enemies.length % 5 === 0) {
+      console.log(`EntitySystem: Enemigo #${this.enemies.length} (${type}) creado en (${x}, ${y})`);
+    }
     
     return enemy;
   }
@@ -70,6 +81,24 @@ export default class EntitySystem {
     this.entities.delete(entityId);
     
     return true;
+  }
+
+  /**
+   * Configura el multiplicador de velocidad
+   * @param {number} multiplier - Multiplicador de velocidad
+   */
+  setSpeedMultiplier(multiplier) {
+    this.speedMultiplier = multiplier;
+    console.log(`EntitySystem: Multiplicador de velocidad establecido a ${multiplier}x`);
+  }
+  
+  /**
+   * Establece el estado de pausa
+   * @param {boolean} isPaused - Si está pausado
+   */
+  setPaused(isPaused) {
+    this.isPaused = isPaused;
+    console.log(`EntitySystem: ${isPaused ? 'Pausado' : 'Reanudado'}`);
   }
 
   /**
@@ -112,6 +141,7 @@ export default class EntitySystem {
     // Distancia acumulada desde el último enemigo
     let distanceSinceLastEnemy = 0;
     let lastPoint = path[0];
+    let enemiesCreated = 0;
     
     // Tipos de enemigos disponibles para generación
     const enemyTypes = ['slime', 'skeleton', 'goblin'];
@@ -142,6 +172,7 @@ export default class EntitySystem {
           
           // Crear el enemigo
           this.createEnemy(point.x, point.y, enemyType, stats);
+          enemiesCreated++;
           
           // Reiniciar la distancia
           distanceSinceLastEnemy = 0;
@@ -150,6 +181,8 @@ export default class EntitySystem {
       
       lastPoint = point;
     }
+    
+    console.log(`EntitySystem: ${enemiesCreated} enemigos creados en el camino`);
   }
 
   /**
@@ -212,15 +245,32 @@ export default class EntitySystem {
    * @param {number} delta - Tiempo transcurrido desde el último frame
    */
   update(delta) {
+    // No actualizar si está pausado
+    if (this.isPaused) return;
+    
+    // Verificar delta muy grande
+    if (delta > 500) {
+      console.warn(`EntitySystem: Delta time anormalmente alto: ${delta}ms. Limitando a 500ms.`);
+      delta = 500;
+    }
+    
+    // Aplicar multiplicador de velocidad
+    const adjustedDelta = delta * this.speedMultiplier;
+    
+    // Log ocasional para depuración
+    if (Math.random() < 0.01) {
+      console.log(`EntitySystem: update con delta=${delta}ms, ajustado=${adjustedDelta}ms (x${this.speedMultiplier})`);
+    }
+    
     // Actualizar el jugador
     if (this.player && this.player.active) {
-      this.player.update(delta);
+      this.player.update(adjustedDelta);
     }
     
     // Actualizar enemigos
     for (const enemy of this.enemies) {
       if (enemy.active) {
-        enemy.update(delta);
+        enemy.update(adjustedDelta);
       }
     }
   }

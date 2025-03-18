@@ -68,26 +68,28 @@ export const BASE_PLAYER_STATS = {
       };
     }
   
-    /**
-     * Obtiene estadísticas con bonificaciones aplicadas
-     * @returns {Object} Estadísticas finales
-     */
-    getStats() {
-      const finalStats = { ...this.stats };
-      
-      // Aplicar bonificaciones de equipo
-      finalStats.attack += this.equipmentBonuses.attack;
-      finalStats.defense += this.equipmentBonuses.defense;
-      finalStats.maxHealth += this.equipmentBonuses.maxHealth;
-      finalStats.speed += this.equipmentBonuses.speed;
-      finalStats.critChance += this.equipmentBonuses.critChance;
-      finalStats.critMultiplier += this.equipmentBonuses.critMultiplier;
-      
-      // Ajustar si la vida actual supera la máxima
-      finalStats.health = Math.min(finalStats.health, finalStats.maxHealth);
-      
-      return finalStats;
-    }
+/**
+ * Obtiene estadísticas con bonificaciones aplicadas
+ * @returns {Object} Estadísticas finales
+ */
+getStats() {
+  // Clonar las estadísticas básicas para evitar modificar el original
+  // Usar una copia superficial para evitar recursión
+  const finalStats = Object.assign({}, this.stats);
+  
+  // Aplicar bonificaciones de equipo
+  finalStats.attack = (finalStats.attack || 0) + (this.equipmentBonuses.attack || 0);
+  finalStats.defense = (finalStats.defense || 0) + (this.equipmentBonuses.defense || 0);
+  finalStats.maxHealth = (finalStats.maxHealth || 20) + (this.equipmentBonuses.maxHealth || 0);
+  finalStats.speed = (finalStats.speed || 1) + (this.equipmentBonuses.speed || 0);
+  finalStats.critChance = (finalStats.critChance || 0.05) + (this.equipmentBonuses.critChance || 0);
+  finalStats.critMultiplier = (finalStats.critMultiplier || 1.5) + (this.equipmentBonuses.critMultiplier || 0);
+  
+  // Ajustar si la vida actual supera la máxima
+  finalStats.health = Math.min(finalStats.health || 0, finalStats.maxHealth);
+  
+  return finalStats;
+}
   
     /**
      * Aplica bonificaciones de equipo

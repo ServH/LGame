@@ -96,10 +96,10 @@ export default class GameScene extends Phaser.Scene {
    */
   setupRegistry() {
     // Limpiar registro en caso de reinicio
-  const keys = this.registry.getAll();
-  Object.keys(keys).forEach((key) => {
-    this.registry.remove(key);
-  });
+    const keys = this.registry.getAll();
+    Object.keys(keys).forEach((key) => {
+      this.registry.remove(key);
+    });
     
     // Registrar gestor del juego para acceso global
     this.registry.set('gameManager', this.gameManager);
@@ -111,6 +111,10 @@ export default class GameScene extends Phaser.Scene {
   initSystems() {
     // Sistema de camino
     this.pathSystem = new PathSystem(this);
+    // Ajustar valores iniciales para evitar problemas de movimiento
+    this.pathSystem.movementSpeed = 80; // Incrementado para mejor respuesta
+    this.pathSystem.nodeReachedDistance = 15; // Aumentado para evitar saltos
+    
     this.gameManager.registerSystem('path', this.pathSystem);
     globalRegistry.register('path', this.pathSystem);
     
@@ -142,6 +146,11 @@ export default class GameScene extends Phaser.Scene {
     
     // Sincronizar referencias entre sistemas
     globalRegistry.syncSystemReferences();
+    
+    // Log para depuración
+    console.log('Sistemas inicializados con valores: ' +
+                `pathSpeed=${this.pathSystem.movementSpeed}, ` +
+                `nodeDistance=${this.pathSystem.nodeReachedDistance}`);
   }
 
   /**
@@ -157,6 +166,7 @@ export default class GameScene extends Phaser.Scene {
       40   // número de nodos
     );
     
+    console.log(`Camino generado con ${path.length} nodos`);
     return path;
   }
 
@@ -190,6 +200,7 @@ export default class GameScene extends Phaser.Scene {
     // Comunicar al UI que el jugador se ha creado
     this.events.emit('player-created', this.player);
     
+    console.log(`Jugador creado en posición (${startPoint.x}, ${startPoint.y})`);
     return this.player;
   }
   
@@ -209,7 +220,12 @@ export default class GameScene extends Phaser.Scene {
         delay: 1000,
         callback: () => {
           if (this.player && this.player.isActive()) {
-            this.player.heal(healRate * this.player.stats.maxHealth);
+            const healing = healRate * this.player.stats.maxHealth;
+            this.player.heal(healing);
+            // Log de depuración ocasional
+            if (Math.random() < 0.05) {
+              console.log(`Curación pasiva: ${healing.toFixed(2)} (${healRate * 100}% de ${this.player.stats.maxHealth})`);
+            }
           }
         },
         loop: true
@@ -220,6 +236,7 @@ export default class GameScene extends Phaser.Scene {
       // Mejora de forge - aumenta daño del jugador
       const attackBonus = this.baseUpgrades.forge * 0.05;
       this.player.statsManager.stats.attack *= (1 + attackBonus);
+      console.log(`Bonificación de ataque aplicada: +${(attackBonus * 100).toFixed(0)}%`);
     }
     
     if (this.baseUpgrades.library) {
@@ -240,6 +257,8 @@ export default class GameScene extends Phaser.Scene {
           });
         }
       });
+      
+      console.log(`Bonificación de experiencia aplicada: +${(expBonus * 100).toFixed(0)}%`);
     }
   }
 
@@ -248,6 +267,7 @@ export default class GameScene extends Phaser.Scene {
    * @param {number} multiplier - Multiplicador de velocidad
    */
   setGameSpeed(multiplier) {
+    console.log(`GameScene: Solicitud de cambio de velocidad a ${multiplier}x`);
     this.gameManager.setGameSpeed(multiplier);
   }
 
@@ -301,19 +321,35 @@ export default class GameScene extends Phaser.Scene {
       if (Math.random() < 0.05) {
         this.eventManager.createRandomEvent(nodeIndex);
       }
+      
+      // Log ocasional para depuración
+      if (Math.random() < 0.1) {
+        console.log(`Nodo ${nodeIndex} alcanzado, velocidad actual: ${this.gameManager.speedMultiplier}x`);
+      }
     });
   }
 
-  /**
-   * Actualiza el estado del juego
-   * @param {number} time - Tiempo actual
-   * @param {number} delta - Tiempo transcurrido desde el último frame
-   */
-  update(time, delta) {
-    // Actualizar gestor del juego
-    this.gameManager.update(time, delta);
-    
-    // Actualizar registro global
-    globalRegistry.updateAll(time, delta);
+/**
+ * Actualiza el estado del juego
+ * @param {number} time - Tiempo actual
+ * @param {number} delta - Tiempo transcurrido desde el último frame
+ */
+update(time, delta) {
+  // SOLUCIÓN DE EMERGENCIA: Siempre usar un delta fijo
+  const FIXED_DELTA = 16.66; // 60fps constante
+  
+  // Actualizar gestor del juego con delta fijo
+  this.gameManager.update(time, FIXED_DELTA);
+  
+  // Actualizar registro global con delta fijo
+  globalRegistry.updateAll(time, FIXED_DELTA);
+  
+  // Verificar rendimiento cada pocos segundos
+  if (Math.floor(time/1000) % 5 === 0 && Math.floor(time) % 1000 < 20) {
+    const fps = 1000 / delta;
+    if (fps < 30) {
+      console.warn(`Rendimiento bajo: ${fps.toFixed(1)} FPS - Usando delta fijo: ${FIXED_DELTA}ms`);
+    }
   }
+}
 }

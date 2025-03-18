@@ -197,23 +197,64 @@ export default class GameManager {
     console.log("El jugador ha sido derrotado");
   }
 
-  /**
-   * Gestiona la finalización de un loop
-   */
-  handleLoopCompletion() {
-    // Incrementar contadores
-    this.loopCount++;
-    this.stats.loops++;
-    
-    console.log(`Loop #${this.loopCount} completado`);
-    
-    // Calcular recompensas por completar el loop
-    const player = this.getSystem('entity')?.player;
-    
-    if (player) {
+/**
+ * Gestiona la finalización de un loop
+ */
+handleLoopCompletion() {
+  // Incrementar contadores
+  this.loopCount++;
+  this.stats.loops++;
+  
+  console.log(`Loop #${this.loopCount} completado`);
+  
+  // Limitar la velocidad de loops para evitar problemas
+  const MAX_LOOPS_PER_MINUTE = 100;
+  const now = Date.now();
+  if (!this._lastLoopTime) {
+    this._lastLoopTime = now;
+    this._loopsThisMinute = 1;
+  } else {
+    // Verificar si estamos en el mismo minuto
+    const timeElapsed = now - this._lastLoopTime;
+    if (timeElapsed < 60000) { // Menos de un minuto
+      this._loopsThisMinute++;
+      
+      // Si excedemos el límite, reducir la velocidad
+      if (this._loopsThisMinute > MAX_LOOPS_PER_MINUTE) {
+        console.warn(`Demasiados loops por minuto (${this._loopsThisMinute}). Reduciendo velocidad.`);
+        this.setGameSpeed(Math.max(0.5, this.speedMultiplier * 0.8)); // Reducir velocidad
+        
+        // Reiniciar contador para no seguir reduciendo
+        this._lastLoopTime = now;
+        this._loopsThisMinute = 1;
+        
+        // Notificar al usuario
+        this.scene.events.emit('show-notification', 'Velocidad reducida automáticamente para evitar problemas');
+      }
+    } else {
+      // Reiniciar para el siguiente minuto
+      this._lastLoopTime = now;
+      this._loopsThisMinute = 1;
+    }
+  }
+  
+  // Calcular recompensas por completar el loop
+  let player = null;
+  try {
+    player = this.getSystem('entity')?.player;
+  } catch (e) {
+    console.error("Error al obtener el jugador:", e);
+  }
+  
+  if (player) {
+    try {
+      // Guardar una copia local segura de las estadísticas del jugador
+      // para evitar recursión infinita
+      const playerLevel = player._stats?.level || 1;
+      
       // Base de recompensas para el loop
-      const baseGold = 10 + (player.stats.level * 5);
-      const baseExperience = 5 + (player.stats.level * 3);
+      const baseGold = 10 + (playerLevel * 5);
+      const baseExperience = 5 + (playerLevel * 3);
       
       // Bonificaciones según el nivel del jugador y el número de loops
       const goldMultiplier = 1 + (this.loopCount * 0.1);
@@ -243,13 +284,46 @@ export default class GameManager {
       
       // Transición a la base con los datos obtenidos
       this.scene.time.delayedCall(2000, () => {
+        // Obtener una copia segura de los datos del jugador
+        const playerData = {
+          health: player._stats?.health || 20,
+          maxHealth: player._stats?.maxHealth || 20,
+          attack: player._stats?.attack || 3,
+          defense: player._stats?.defense || 1,
+          speed: player._stats?.speed || 1.2,
+          level: playerLevel,
+          experience: player._stats?.experience || 0,
+          experienceToNextLevel: player._stats?.experienceToNextLevel || 10,
+          gold: player._stats?.gold || 0
+        };
+        
         this.transitionToBase({
-          player: player.statsManager ? player.statsManager.stats : player.stats,
+          player: playerData,
           reward
         });
       });
+    } catch (e) {
+      console.error("Error al procesar recompensas:", e);
+      // Intentar transición de emergencia
+      this.scene.time.delayedCall(1000, () => {
+        this.transitionToBase({
+          player: {
+            level: 1,
+            health: 20,
+            maxHealth: 20
+          },
+          reward: {
+            gold: 0,
+            experience: 0,
+            items: []
+          }
+        });
+      });
     }
+  } else {
+    console.error("No se pudo obtener el jugador para calcular recompensas");
   }
+}
 
   /**
    * Transiciona a la escena de base
