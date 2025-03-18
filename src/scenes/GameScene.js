@@ -63,7 +63,7 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // Generar enemigos en el path
-    this.entitySystem.populatePath(
+    this.entitySystem.spawnEnemiesOnPath(
       this.pathSystem.path,
       120,
       (point, index, path) => {
@@ -96,9 +96,10 @@ export default class GameScene extends Phaser.Scene {
    */
   setupRegistry() {
     // Limpiar registro en caso de reinicio
-    this.registry.forEach((value, key) => {
-      this.registry.remove(key);
-    });
+  const keys = this.registry.getAll();
+  Object.keys(keys).forEach((key) => {
+    this.registry.remove(key);
+  });
     
     // Registrar gestor del juego para acceso global
     this.registry.set('gameManager', this.gameManager);

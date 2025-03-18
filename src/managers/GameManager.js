@@ -26,6 +26,8 @@ export default class GameManager {
     
     // Registrar eventos
     this.registerEvents();
+    
+    console.log("GameManager inicializado con speedMultiplier:", this.speedMultiplier);
   }
 
   /**
@@ -54,6 +56,8 @@ export default class GameManager {
     
     // Emitir evento de inicio
     this.scene.events.emit('game-initialized', playerData);
+    
+    console.log("Juego inicializado con playerData:", playerData);
   }
 
   /**
@@ -64,6 +68,7 @@ export default class GameManager {
   registerSystem(name, system) {
     this.systems.set(name, system);
     globalRegistry.register(name, system);
+    console.log(`Sistema '${name}' registrado`);
   }
 
   /**
@@ -84,11 +89,22 @@ export default class GameManager {
     // Si el juego está pausado, no actualizar
     if (this.gameState === 'paused') return;
     
+    // Log para tiempo muy grande (posible pérdida de frames)
+    if (delta > 500) {
+      console.warn(`Delta time anormalmente alto: ${delta}ms. Posible pérdida de frames.`);
+    }
+    
     // Actualizar todos los sistemas que tengan método update
-    this.systems.forEach(system => {
+    this.systems.forEach((system, name) => {
       if (system.update) {
         // Pasar el delta ajustado por el multiplicador de velocidad
         const adjustedDelta = delta * this.speedMultiplier;
+        
+        // Log ocasional para verificar deltas por sistema
+        if (Math.random() < 0.002) {
+          console.log(`Update ${name}: delta=${delta}, adjustedDelta=${adjustedDelta}, speedMultiplier=${this.speedMultiplier}`);
+        }
+        
         system.update(time, adjustedDelta);
       }
     });
@@ -112,6 +128,7 @@ export default class GameManager {
   setPaused(paused) {
     this.isPaused = paused;
     this.gameState = paused ? 'paused' : 'playing';
+    console.log(`Juego ${paused ? 'pausado' : 'reanudado'}`);
     
     // Propagarlo a todos los sistemas
     this.systems.forEach(system => {
@@ -138,6 +155,7 @@ export default class GameManager {
   setGameSpeed(multiplier) {
     // Asegurarse de que sea un valor válido
     multiplier = Math.max(0, multiplier);
+    console.log(`GameManager: Cambiando velocidad del juego a ${multiplier}x`);
     
     // Si es 0, pausar el juego
     if (multiplier === 0) {
@@ -150,9 +168,10 @@ export default class GameManager {
     
     this.speedMultiplier = multiplier;
     
-    // Propagarlo a los sistemas
-    this.systems.forEach(system => {
+    // Propagar a los sistemas
+    this.systems.forEach((system, name) => {
       if (system.setSpeedMultiplier) {
+        console.log(`Aplicando multiplicador ${multiplier}x a sistema: ${name}`);
         system.setSpeedMultiplier(multiplier);
       }
     });
@@ -175,6 +194,7 @@ export default class GameManager {
     
     // Emitir evento
     this.scene.events.emit('player-died');
+    console.log("El jugador ha sido derrotado");
   }
 
   /**
@@ -184,6 +204,8 @@ export default class GameManager {
     // Incrementar contadores
     this.loopCount++;
     this.stats.loops++;
+    
+    console.log(`Loop #${this.loopCount} completado`);
     
     // Calcular recompensas por completar el loop
     const player = this.getSystem('entity')?.player;
@@ -211,6 +233,8 @@ export default class GameManager {
         items: []
       };
       
+      console.log(`Recompensas de loop: ${gold} oro, ${experience} exp`);
+      
       // Emitir evento con recompensas
       this.scene.events.emit('loop-completed', { 
         loopNumber: this.loopCount,
@@ -220,7 +244,7 @@ export default class GameManager {
       // Transición a la base con los datos obtenidos
       this.scene.time.delayedCall(2000, () => {
         this.transitionToBase({
-          player: player.statsManager.stats,
+          player: player.statsManager ? player.statsManager.stats : player.stats,
           reward
         });
       });
@@ -233,6 +257,8 @@ export default class GameManager {
    */
   transitionToBase(data) {
     // Transición con fundido a negro
+    console.log("Iniciando transición a BaseScene con datos:", data);
+    
     this.scene.cameras.main.fade(1000, 0, 0, 0, false, (camera, progress) => {
       if (progress === 1) {
         // Iniciar escena de base con datos recopilados
@@ -246,6 +272,8 @@ export default class GameManager {
    */
   restartGame() {
     if (this.gameState !== 'defeat') return;
+    
+    console.log("Reiniciando juego...");
     
     // Reiniciar todos los sistemas
     this.systems.forEach(system => {
@@ -276,6 +304,7 @@ export default class GameManager {
     // Incrementar contador de kills si el jugador mata a un enemigo
     if (entity && entity.type === 'enemy' && killer && killer.type === 'player') {
       this.stats.kills++;
+      console.log(`Enemigo eliminado: ${entity.enemyType || 'desconocido'}, total kills: ${this.stats.kills}`);
     }
   }
 
@@ -285,6 +314,7 @@ export default class GameManager {
    */
   handleTilePlaced(tile) {
     this.stats.tilesPlaced++;
+    console.log(`Tile colocado: ${tile.type}, total tiles: ${this.stats.tilesPlaced}`);
   }
 
   /**
@@ -295,6 +325,7 @@ export default class GameManager {
     if (rewardInfo.rewards) {
       this.stats.totalGold += rewardInfo.rewards.gold || 0;
       this.stats.totalExperience += rewardInfo.rewards.experience || 0;
+      console.log(`Recompensas obtenidas: ${rewardInfo.rewards.gold || 0} oro, ${rewardInfo.rewards.experience || 0} exp`);
     }
   }
 
@@ -304,6 +335,8 @@ export default class GameManager {
    * @param {Object} eventConfig - Configuración del evento
    */
   triggerEvent(eventType, eventConfig) {
+    console.log(`Evento disparado: ${eventType}`, eventConfig);
+    
     // Aplicar efectos del evento
     if (eventConfig.effect) {
       eventConfig.effect();

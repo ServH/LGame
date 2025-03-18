@@ -119,40 +119,62 @@ export default class PlayerVisuals {
       });
     }
     
-    /**
-     * Reproduce animación de inicio de combate
-     * @param {Phaser.Scene} scene - Escena de Phaser
-     * @param {Player} player - Instancia del jugador
-     */
-    static playStartCombatEffect(scene, player) {
-      if (!player.targetEnemy) return;
-      
-      // Flash rápido en el sprite
-      scene.tweens.add({
-        targets: player.sprite,
-        alpha: 0.7,
-        yoyo: true,
-        duration: 100,
-        repeat: 1
-      });
-      
-      // Emisión de partículas de "iniciativa"
-      if (player.particleEmitter) {
-        player.particleEmitter.setPosition(player.x, player.y);
-        player.particleEmitter.setSpeed({ min: 50, max: 100 });
-        player.particleEmitter.setScale({ start: 0.5, end: 0 });
-        player.particleEmitter.explode(5);
-      }
-      
-      // Si existe el sistema de efectos de combate, usar eso en su lugar
-      if (scene.combatEffectsSystem) {
-        scene.combatEffectsSystem.createImpact(player.x, player.y, {
-          size: 0.8,
-          color: 0x00ff00,
-          particles: 5
-        });
+/**
+ * Reproduce animación de inicio de combate
+ * @param {Phaser.Scene} scene - Escena de Phaser
+ * @param {Player} player - Instancia del jugador
+ */
+static playStartCombatEffect(scene, player) {
+  if (!player.targetEnemy) return;
+  
+  // Flash rápido en el sprite
+  scene.tweens.add({
+    targets: player.sprite,
+    alpha: 0.7,
+    yoyo: true,
+    duration: 100,
+    repeat: 1
+  });
+  
+  // Emisión de partículas de "iniciativa"
+  if (player.particleEmitter) {
+    player.particleEmitter.setPosition(player.x, player.y);
+    
+    // Verificar tipo de emisor y usar método apropiado
+    if (typeof player.particleEmitter.setSpeed === 'function') {
+      player.particleEmitter.setSpeed({ min: 50, max: 100 });
+    } else if (typeof player.particleEmitter.setSpeedX === 'function') {
+      // Para emisores ParticleEmitterManager
+      player.particleEmitter.setSpeedX({ min: -50, max: 50 });
+      player.particleEmitter.setSpeedY({ min: -100, max: -50 });
+    } else {
+      // Fallback para emisores simples
+      try {
+        player.particleEmitter.emitParticle(5);
+      } catch (e) {
+        console.warn("No se pudieron emitir partículas:", e);
       }
     }
+    
+    // Similar con setScale
+    if (typeof player.particleEmitter.setScale === 'function') {
+      player.particleEmitter.setScale({ start: 0.5, end: 0 });
+      player.particleEmitter.explode(5);
+    } else if (typeof player.particleEmitter.scaleX === 'object') {
+      // Intento para emisores con propiedades directas
+      player.particleEmitter.explode(5);
+    }
+  }
+  
+  // Si existe el sistema de efectos de combate, usar eso en su lugar
+  if (scene.combatEffectsSystem) {
+    scene.combatEffectsSystem.createImpact(player.x, player.y, {
+      size: 0.8,
+      color: 0x00ff00,
+      particles: 5
+    });
+  }
+}
     
     /**
      * Reproduce animación de subida de nivel

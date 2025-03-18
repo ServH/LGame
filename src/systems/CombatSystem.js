@@ -23,14 +23,14 @@ export default class CombatSystem {
     this.scene.events.on('entity-died', this.handleEntityDied, this);
   }
 
-  /**
-   * Sincroniza referencias con otros sistemas
-   * @param {Function} getSystem - Función para obtener sistemas
-   */
-  syncReferences(getSystem) {
-    this.entitySystem = getSystem('entity');
-    this.combatEffectsSystem = getSystem('effects');
-  }
+ /**
+ * Sincroniza referencias con otros sistemas
+ * @param {SystemRegistry} registry - Registro de sistemas
+ */
+  syncReferences(registry) {
+  this.entitySystem = registry.get('entity');
+  this.combatEffectsSystem = registry.get('effects');
+}
 
   /**
    * Inicializa el sistema con datos del juego

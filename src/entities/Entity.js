@@ -19,11 +19,8 @@ export default class Entity extends Phaser.GameObjects.Container {
     this.sprite = scene.add.rectangle(0, 0, 16, 16, 0xffffff);
     this.add(this.sprite);
     
-    // Barra de vida
-    this.createHealthBar();
-    
     // Estadísticas por defecto
-    this.stats = {
+    this._stats = {
       health: 10,
       maxHealth: 10,
       attack: 1,
@@ -36,6 +33,9 @@ export default class Entity extends Phaser.GameObjects.Container {
       critMultiplier: 1.5, // 50% daño extra en críticos
       ...stats
     };
+    
+    // Barra de vida
+    this.createHealthBar();
     
     // Estado actual
     this.state = 'idle'; // idle, moving, attacking, damaged, dead
@@ -62,7 +62,7 @@ export default class Entity extends Phaser.GameObjects.Container {
     this.add(this.healthBar);
     
     // Ocultar inicialmente si está a full vida
-    const healthRatio = this.stats?.health / this.stats?.maxHealth || 1;
+    const healthRatio = this._stats.health / this._stats.maxHealth || 1;
     this.healthBar.visible = healthRatio < 1;
     this.healthBarBg.visible = healthRatio < 1;
   }
@@ -80,6 +80,14 @@ export default class Entity extends Phaser.GameObjects.Container {
       repeat: -1,
       ease: 'Sine.easeInOut'
     });
+  }
+
+  /**
+   * Obtiene las estadísticas de la entidad
+   * @returns {Object} Estadísticas
+   */
+  get stats() {
+    return this._stats;
   }
 
   /**
@@ -129,7 +137,7 @@ export default class Entity extends Phaser.GameObjects.Container {
    * Actualiza la visualización de la barra de vida
    */
   updateHealthBar() {
-    const healthRatio = Math.max(0, this.stats.health / this.stats.maxHealth);
+    const healthRatio = Math.max(0, this._stats.health / this._stats.maxHealth);
     this.healthBar.width = 16 * healthRatio;
     
     // Ocultar barra si está a full vida
@@ -194,7 +202,7 @@ export default class Entity extends Phaser.GameObjects.Container {
         });
         
         // Establecer cooldown basado en velocidad
-        this.actionCooldown = 1000 / this.stats.speed;
+        this.actionCooldown = 1000 / this._stats.speed;
         break;
         
       case 'damaged':
@@ -255,7 +263,7 @@ export default class Entity extends Phaser.GameObjects.Container {
     const isCritical = source && source.stats.critChance > Math.random();
     
     // Calcular daño real basado en defensa
-    const defense = this.stats.defense || 0;
+    const defense = this._stats.defense || 0;
     let actualDamage = Math.max(1, amount - defense);
     
     // Aplicar multiplicador de crítico
@@ -264,13 +272,13 @@ export default class Entity extends Phaser.GameObjects.Container {
     }
     
     // Aplicar daño
-    this.stats.health = Math.max(0, this.stats.health - actualDamage);
+    this._stats.health = Math.max(0, this._stats.health - actualDamage);
     
     // Cambiar estado
     this.setState('damaged');
     
     // Comprobar si ha muerto
-    if (this.stats.health <= 0) {
+    if (this._stats.health <= 0) {
       this.die(source);
     }
     
@@ -282,7 +290,7 @@ export default class Entity extends Phaser.GameObjects.Container {
     return { 
       damage: actualDamage, 
       isCritical, 
-      killed: this.stats.health <= 0 
+      killed: this._stats.health <= 0 
     };
   }
 
@@ -326,8 +334,8 @@ export default class Entity extends Phaser.GameObjects.Container {
     
     // Dar experiencia al jugador si es un enemigo
     if (killer && killer.type === 'player' && this.type === 'enemy') {
-      killer.addExperience(this.stats.experience || 0);
-      killer.addGold(this.stats.gold || 0);
+      killer.addExperience(this._stats.experience || 0);
+      killer.addGold(this._stats.gold || 0);
       
       // Posible drop de objeto
       if (this.scene.combatSystem) {
@@ -345,9 +353,9 @@ export default class Entity extends Phaser.GameObjects.Container {
    * @returns {number} Curación real aplicada
    */
   heal(amount) {
-    const oldHealth = this.stats.health;
-    this.stats.health = Math.min(this.stats.maxHealth, this.stats.health + amount);
-    const actualHeal = this.stats.health - oldHealth;
+    const oldHealth = this._stats.health;
+    this._stats.health = Math.min(this._stats.maxHealth, this._stats.health + amount);
+    const actualHeal = this._stats.health - oldHealth;
     
     if (actualHeal > 0) {
       // Efecto visual de curación
@@ -444,6 +452,6 @@ export default class Entity extends Phaser.GameObjects.Container {
    * @returns {boolean} Estado de actividad
    */
   isActive() {
-    return this.active && this.stats.health > 0;
+    return this.active && this._stats.health > 0;
   }
 }

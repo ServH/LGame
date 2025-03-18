@@ -151,24 +151,26 @@ export default class SystemIntegration {
    * @param {Object} system - Instancia del sistema
    */
   static setupInitialReferences(systemName, system) {
+    const registry = globalRegistry; // Asegurarse de importar globalRegistry
+      
     switch (systemName) {
       case 'entity':
-        system.combatSystem = globalRegistry.get('combat');
-        system.pathSystem = globalRegistry.get('path');
-        system.combatEffectsSystem = globalRegistry.get('effects');
+        system.combatSystem = registry.get('combat');
+        system.pathSystem = registry.get('path');
+        system.combatEffectsSystem = registry.get('effects');
         break;
-        
+          
       case 'combat':
-        system.entitySystem = globalRegistry.get('entity');
-        system.combatEffectsSystem = globalRegistry.get('effects');
+        system.entitySystem = registry.get('entity');
+        system.combatEffectsSystem = registry.get('effects');
         break;
-        
+          
       case 'path':
-        system.entitySystem = globalRegistry.get('entity');
+        system.entitySystem = registry.get('entity');
         break;
-        
+          
       case 'tile':
-        system.pathSystem = globalRegistry.get('path');
+        system.pathSystem = registry.get('path');
         break;
     }
   }

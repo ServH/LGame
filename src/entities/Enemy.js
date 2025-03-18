@@ -1,4 +1,4 @@
-// src/entities/enemy/Enemy.js
+// src/entities/Enemy.js
 import Entity from './Entity';
 
 /**
@@ -33,6 +33,7 @@ export default class Enemy extends Entity {
     // Estado de alerta
     this.isAlerted = false;
     this.alertDuration = 0;
+    this.originalColor = null;
     
     // Propiedades de jefe
     this.isBoss = false;
@@ -58,9 +59,7 @@ export default class Enemy extends Entity {
         this.isAlerted = false;
         
         // Restaurar estado visual normal
-        if (this.sprite) {
-          this.sprite.clearTint();
-        }
+        this.clearAlert();
       }
     }
     
@@ -144,7 +143,22 @@ export default class Enemy extends Entity {
     
     // Cambiar visual para mostrar alerta
     if (this.sprite) {
-      this.sprite.setTint(0xff9999);
+      // Verificar el tipo de sprite antes de usar setTint
+      if (this.sprite.setTint) {
+        this.sprite.setTint(0xff9999);
+      } else if (this.sprite.fillColor !== undefined) {
+        // Si es un rectángulo u otra forma, modificar el color directamente
+        this.originalColor = this.sprite.fillColor;
+        this.sprite.setFillStyle(0xff9999);
+      } else {
+        // Alternativa: usar alpha para mostrar estado de alerta
+        this.sprite.setAlpha(0.7);
+        this.scene.time.delayedCall(300, () => {
+          if (this.isAlerted) {
+            this.sprite.setAlpha(1);
+          }
+        });
+      }
     }
     
     // Notificar a enemigos cercanos (propagación de alerta)
@@ -166,6 +180,21 @@ export default class Enemy extends Entity {
           enemy.alert(duration - 500); // Menos duración en la propagación
         });
       });
+    }
+  }
+
+  /**
+   * Restaura el color normal del enemigo
+   */
+  clearAlert() {
+    if (this.sprite) {
+      if (this.sprite.clearTint) {
+        this.sprite.clearTint();
+      } else if (this.originalColor !== undefined) {
+        this.sprite.setFillStyle(this.originalColor);
+      } else {
+        this.sprite.setAlpha(1);
+      }
     }
   }
 
