@@ -4,6 +4,8 @@ import PathSystem from '../systems/PathSystem';
 import EntitySystem from '../systems/EntitySystem';
 import TimeSystem from '../systems/TimeSystem';
 import TileSystem from '../systems/TileSystem';
+import CombatSystem from '../systems/CombatSystem';
+import CombatEffectsSystem from '../systems/CombatEffectsSystem';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -43,6 +45,9 @@ export default class GameScene extends Phaser.Scene {
     // Activar controles de juego
     this.setupControls();
     
+    // Registrar eventos de sistema
+    this.setupEvents();
+    
     // Iniciar el loop automático
     this.startLoop();
     
@@ -56,12 +61,18 @@ export default class GameScene extends Phaser.Scene {
     // Sistema de camino
     this.pathSystem = new PathSystem(this);
     
-    // Sistema de entidades
-    this.entitySystem = new EntitySystem(this);
-    
     // Sistema de tiempo (día/noche)
     this.timeSystem = new TimeSystem(this);
     this.timeSystem.createTimeIndicator(700, 30, 120);
+    
+    // Sistema de efectos de combate
+    this.combatEffectsSystem = new CombatEffectsSystem(this);
+    
+    // Sistema de combate
+    this.combatSystem = new CombatSystem(this);
+    
+    // Sistema de entidades
+    this.entitySystem = new EntitySystem(this);
     
     // Sistema de tiles
     this.tileSystem = new TileSystem(this);
@@ -131,6 +142,46 @@ export default class GameScene extends Phaser.Scene {
         return Math.random() < (0.15 + progress * 0.3);
       }
     );
+    
+    // Añadir algunos "grupos" de enemigos
+    this.createEnemyGroups();
+  }
+
+  /**
+   * Crea grupos de enemigos que se alertan entre sí
+   */
+  createEnemyGroups() {
+    // 1-3 grupos de enemigos
+    const groupCount = 1 + Math.floor(Math.random() * 2);
+    const pathPoints = this.pathSystem.path;
+    
+    for (let i = 0; i < groupCount; i++) {
+      // Posición aleatoria en el path (más allá de la mitad)
+      const pathIndex = Math.floor(pathPoints.length * 0.5) + 
+                        Math.floor(Math.random() * (pathPoints.length * 0.4));
+      
+      if (pathIndex >= pathPoints.length) continue;
+      
+      const point = pathPoints[pathIndex];
+      
+      // 2-4 enemigos por grupo
+      const enemyCount = 2 + Math.floor(Math.random() * 3);
+      
+      // Crear enemigos alrededor del punto
+      for (let j = 0; j < enemyCount; j++) {
+        const angle = (j / enemyCount) * Math.PI * 2;
+        const distance = 30 + Math.random() * 20;
+        
+        const enemyX = point.x + Math.cos(angle) * distance;
+        const enemyY = point.y + Math.sin(angle) * distance;
+        
+        // Tipo aleatorio
+        const enemyTypes = ['slime', 'goblin', 'skeleton'];
+        const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+        
+        this.entitySystem.createEnemy(enemyX, enemyY, enemyType);
+      }
+    }
   }
 
   /**
@@ -257,6 +308,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.entitySystem) this.entitySystem.update(delta);
     if (this.timeSystem) this.timeSystem.update(delta);
     if (this.tileSystem) this.tileSystem.update(delta);
+    if (this.combatEffectsSystem) this.combatEffectsSystem.update(time, delta);
     
     // Comprobar condición de victoria/derrota
     this.checkGameState();
@@ -273,6 +325,53 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Registra eventos de sistema
+   */
+  setupEvents() {
+    // Escuchar evento de loop completado para manejarlo
+    this.events.on('loop-completed', this.handleLoopCompletion, this);
+    
+    // Eventos de items y equipamiento
+    this.events.on('item-dropped', this.handleItemDropped, this);
+    
+    // Suscribirse a evento de nodo alcanzado para posibles eventos
+    this.events.on('path-node-reached', this.handleNodeReached, this);
+  }
+
+  /**
+   * Maneja cuando se alcanza un nodo del camino
+   * @param {number} nodeIndex - Índice del nodo alcanzado
+   */
+  handleNodeReached(nodeIndex) {
+    // Probabilidad pequeña de evento aleatorio (5%)
+    if (Math.random() < 0.05) {
+      this.createRandomEvent(nodeIndex);
+    }
+  }
+
+  /**
+   * Maneja la caída de un objeto
+   * @param {Object} item - Objeto que cayó
+   * @param {number} x - Posición X
+   * @param {number} y - Posición Y
+   */
+  handleItemDropped(item, x, y) {
+    // Si existe el sistema de efectos de combate, crear efecto visual
+    if (this.combatEffectsSystem) {
+      this.combatEffectsSystem.createItemDropEffect(x, y, {
+        rarity: item.rarity,
+        duration: 1500
+      });
+    }
+    
+    // Añadir al inventario del jugador (simplificado por ahora)
+    this.player.inventory.push(item);
+    
+    // Notificar a la UI
+    this.events.emit('player-item-obtained', item);
+  }
+
+  /**
    * Maneja la finalización de un loop
    */
   handleLoopCompletion() {
@@ -281,8 +380,8 @@ export default class GameScene extends Phaser.Scene {
     
     // Recompensas por completar loop
     const reward = {
-      gold: 10,
-      experience: 20
+      gold: 10 + Math.floor(this.player.stats.level * 2),
+      experience: 20 + Math.floor(this.player.stats.level * 5)
     };
     
     // Añadir recompensas al jugador
@@ -296,12 +395,12 @@ export default class GameScene extends Phaser.Scene {
     });
     
     // Transición a la escena de base
-    setTimeout(() => {
+    this.time.delayedCall(2000, () => {
       this.scene.start('BaseScene', {
         player: this.player.stats,
         reward: reward
       });
-    }, 2000);
+    });
   }
 
   /**
@@ -445,6 +544,47 @@ export default class GameScene extends Phaser.Scene {
         
         eventConfig.effect = () => {
           this.player.addGold(goldAmount);
+          
+          // Posibilidad de encontrar un objeto (20%)
+          if (Math.random() < 0.2 && this.combatSystem) {
+            // Determinar tipo de objeto
+            const itemTypes = ['weapon', 'armor', 'accessory'];
+            const itemType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+            
+            // Determinar rareza (10% raro, 30% inusual, 60% común)
+            const rarityRoll = Math.random();
+            const rarity = rarityRoll < 0.1 ? 'raro' : (rarityRoll < 0.4 ? 'inusual' : 'común');
+            
+            // Crear objeto según tipo
+            let item;
+            switch (itemType) {
+              case 'weapon':
+                item = this.combatSystem.createWeapon(rarity, this.player.stats.level);
+                break;
+              case 'armor':
+                item = this.combatSystem.createArmor(rarity, this.player.stats.level);
+                break;
+              case 'accessory':
+                item = this.combatSystem.createAccessory(rarity, this.player.stats.level);
+                break;
+            }
+            
+            // Añadir al inventario
+            this.player.inventory.push(item);
+            
+            // Actualizar descripción y mostrar efecto visual
+            eventConfig.description += `\n¡También has encontrado: ${item.name}!`;
+            
+            if (this.combatEffectsSystem) {
+              this.combatEffectsSystem.createItemDropEffect(this.player.x, this.player.y + 20, {
+                rarity: rarity,
+                duration: 2000
+              });
+            }
+            
+            // Notificar a la UI
+            this.events.emit('player-item-obtained', item);
+          }
         };
         break;
         
@@ -456,6 +596,10 @@ export default class GameScene extends Phaser.Scene {
         
         eventConfig.effect = () => {
           this.player.heal(healAmount);
+          
+          if (this.combatEffectsSystem) {
+            this.combatEffectsSystem.createHealEffect(this.player, healAmount);
+          }
         };
         break;
         
@@ -496,12 +640,17 @@ export default class GameScene extends Phaser.Scene {
             description: 'Una energía extraña te rodea, aumentando tu ataque.',
             effect: () => {
               this.player.stats.attack += 1;
+              
               // Efecto visual
-              this.add.particles(this.player.x, this.player.y, 'placeholder', {
-                speed: 100,
-                scale: { start: 0.5, end: 0 },
-                lifespan: 1000
-              });
+              if (this.combatEffectsSystem) {
+                this.combatEffectsSystem.createStatusEffect(this.player, 'buff', 3000);
+              } else {
+                this.add.particles(this.player.x, this.player.y, 'placeholder', {
+                  speed: 100,
+                  scale: { start: 0.5, end: 0 },
+                  lifespan: 1000
+                });
+              }
             }
           },
           {
@@ -517,16 +666,24 @@ export default class GameScene extends Phaser.Scene {
               });
               
               // Efecto visual
-              this.player.setTint(0xaaaaff);
-              this.time.delayedCall(10000, () => {
-                this.player.clearTint();
-              });
+              if (this.combatEffectsSystem) {
+                this.combatEffectsSystem.createStatusEffect(this.player, 'debuff', 10000);
+              } else {
+                this.player.setTint(0xaaaaff);
+                this.time.delayedCall(10000, () => {
+                  this.player.clearTint();
+                });
+              }
             }
           },
           {
             description: 'Encuentras un pergamino antiguo, ganando experiencia.',
             effect: () => {
-              this.player.addExperience(15);
+              const expGained = 15 + Math.floor(this.player.stats.level * 3);
+              this.player.addExperience(expGained);
+              
+              // Actualizar descripción con cantidad real
+              eventConfig.description = `Encuentras un pergamino antiguo, ganando ${expGained} de experiencia.`;
             }
           }
         ];
@@ -555,10 +712,162 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Registra eventos de sistema
+   * Crea una bifurcación en el camino
+   * @param {number} nodeIndex - Índice del nodo donde comienza la bifurcación
    */
-  setupEvents() {
-    // Escuchar evento de loop completado para manejarlo
-    this.events.on('loop-completed', this.handleLoopCompletion, this);
+  createPathBranch(nodeIndex) {
+    // Implementación básica - se expandirá en fases posteriores
+    
+    // Crear visual de la bifurcación
+    const node = this.pathSystem.path[nodeIndex];
+    
+    // Indicador de bifurcación
+    const branchIndicator = this.add.text(
+      node.x,
+      node.y - 20,
+      '?',
+      {
+        font: 'bold 16px Arial',
+        fill: '#ffffff'
+      }
+    ).setOrigin(0.5);
+    
+    // Añadir efecto visual
+    this.tweens.add({
+      targets: branchIndicator,
+      y: branchIndicator.y - 5,
+      duration: 500,
+      yoyo: true,
+      repeat: -1
+    });
+    
+    // Añadir evento de bifurcación
+    this.pathSystem.addEventAtNode(nodeIndex, () => {
+      this.showBranchChoice(nodeIndex);
+      branchIndicator.destroy();
+    });
   }
-}
+
+  /**
+   * Muestra opciones de bifurcación al jugador
+   * @param {number} nodeIndex - Índice del nodo de bifurcación
+   */
+  showBranchChoice(nodeIndex) {
+    // Pausar el movimiento
+    this.pathSystem.stopLoop();
+    
+    // Crear overlay de elección
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+    
+    const overlay = this.add.rectangle(
+      width / 2,
+      height / 2,
+      width,
+      height,
+      0x000000,
+      0.5
+    );
+    overlay.setDepth(100);
+    overlay.setScrollFactor(0);
+    
+    // Título
+    const title = this.add.text(
+      width / 2,
+      height / 2 - 100,
+      'Elige tu camino',
+      {
+        font: 'bold 32px Arial',
+        fill: '#ffffff'
+      }
+    );
+    title.setOrigin(0.5);
+    title.setDepth(101);
+    title.setScrollFactor(0);
+    
+    // Opciones
+    const options = [
+      {
+        text: 'Camino de tesoros',
+        description: 'Más tesoros pero enemigos más fuertes',
+        effect: () => {
+          // Crear más eventos de tesoro
+          for (let i = nodeIndex + 2; i < nodeIndex + 10; i += 3) {
+            if (i < this.pathSystem.path.length) {
+              this.createRandomEvent(i);
+            }
+          }
+          
+          // Pero también enemigos más fuertes
+          this.entitySystem.spawnEnemiesOnPath(
+            this.pathSystem.path.slice(nodeIndex + 1),
+            100,
+            () => Math.random() < 0.3
+          );
+        }
+      },
+      {
+        text: 'Camino seguro',
+        description: 'Menos peligros pero menos recompensas',
+        effect: () => {
+          // Menos enemigos pero también menos recompensas
+          // Implementación sencilla para el MVP
+        }
+      }
+    ];
+    
+    const optionButtons = [];
+    
+    options.forEach((option, index) => {
+      const y = height / 2 + index * 80 - 40;
+      
+      // Botón
+      const button = this.add.rectangle(
+        width / 2,
+        y,
+        300,
+        60,
+        0x444444
+      );
+      button.setDepth(101);
+      button.setScrollFactor(0);
+      button.setInteractive();
+      
+      // Texto del botón
+      const buttonText = this.add.text(
+        width / 2,
+        y - 10,
+        option.text,
+        {
+          font: '20px Arial',
+          fill: '#ffffff'
+        }
+      );
+      buttonText.setOrigin(0.5);
+      buttonText.setDepth(102);
+      buttonText.setScrollFactor(0);
+      
+      // Descripción
+      const descriptionText = this.add.text(
+        width / 2,
+        y + 15,
+        option.description,
+        {
+          font: '14px Arial',
+          fill: '#cccccc'
+        }
+      );
+      descriptionText.setOrigin(0.5);
+      descriptionText.setDepth(102);
+      descriptionText.setScrollFactor(0);
+      
+      // Eventos
+      button.on('pointerover', () => {
+        button.setFillStyle(0x666666);
+      });
+      
+      button.on('pointerout', () => {
+        button.setFillStyle(0x444444);
+      });
+      
+      button
