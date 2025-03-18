@@ -1,9 +1,10 @@
-// src/scenes/GameScene.js
+// src/scenes/GameScene.js - Mejora de integración con BaseScene
 import Phaser from 'phaser';
 import GameManager from '../managers/GameManager';
 import EventManager from '../managers/EventManager';
 import InputManager from '../managers/InputManager';
 import { globalRegistry } from '../managers/SystemRegistry';
+import SystemIntegration from '../systems/SystemIntegration';
 
 // Sistemas
 import PathSystem from '../systems/PathSystem';
@@ -24,6 +25,7 @@ export default class GameScene extends Phaser.Scene {
    */
   init(data) {
     this.playerData = data.playerData || null;
+    this.baseUpgrades = data.baseUpgrades || null;
   }
 
   create() {
@@ -39,6 +41,9 @@ export default class GameScene extends Phaser.Scene {
     // Inicializar sistemas
     this.initSystems();
     
+    // Asegurar que los sistemas estén correctamente conectados
+    SystemIntegration.connectAllSystems(this);
+    
     // Inicializar gestor de entrada
     this.inputManager = new InputManager(this, this.gameManager);
     this.inputManager.initialize();
@@ -51,6 +56,11 @@ export default class GameScene extends Phaser.Scene {
     
     // Crear jugador
     this.createPlayer();
+    
+    // Aplicar mejoras de la base si existen
+    if (this.baseUpgrades) {
+      this.applyBaseUpgrades();
+    }
     
     // Generar enemigos en el path
     this.entitySystem.populatePath(
@@ -181,6 +191,56 @@ export default class GameScene extends Phaser.Scene {
     
     return this.player;
   }
+  
+  /**
+   * Aplica las mejoras de la base al juego
+   */
+  applyBaseUpgrades() {
+    if (!this.baseUpgrades || !this.player) return;
+    
+    // Aplicar bonificaciones según las mejoras de la base
+    if (this.baseUpgrades.campfire) {
+      // Mejora de campfire - aumenta regeneración de vida
+      const healRate = this.baseUpgrades.campfire * 0.002;
+      
+      // Crear un evento que cura al jugador periódicamente
+      this.time.addEvent({
+        delay: 1000,
+        callback: () => {
+          if (this.player && this.player.isActive()) {
+            this.player.heal(healRate * this.player.stats.maxHealth);
+          }
+        },
+        loop: true
+      });
+    }
+    
+    if (this.baseUpgrades.forge) {
+      // Mejora de forge - aumenta daño del jugador
+      const attackBonus = this.baseUpgrades.forge * 0.05;
+      this.player.statsManager.stats.attack *= (1 + attackBonus);
+    }
+    
+    if (this.baseUpgrades.library) {
+      // Mejora de biblioteca - aumenta experiencia ganada
+      const expBonus = this.baseUpgrades.library * 0.1;
+      
+      // Interceptar el evento de experiencia ganada
+      this.events.on('player-gained-experience', (amount) => {
+        const bonus = Math.floor(amount * expBonus);
+        if (bonus > 0) {
+          this.player.addExperience(bonus);
+          this.events.emit('show-combat-notification', 
+            `+${bonus} EXP (bonus)`, {
+              color: '#ffff00',
+              fontSize: 12,
+              x: this.player.x + 20,
+              y: this.player.y - 20
+          });
+        }
+      });
+    }
+  }
 
   /**
    * Establece la velocidad del juego
@@ -222,7 +282,13 @@ export default class GameScene extends Phaser.Scene {
       }
       
       // Añadir al inventario del jugador
-      this.player.equipment.addItem(item);
+      if (this.player.equipment && typeof this.player.equipment.addItem === 'function') {
+        this.player.equipment.addItem(item);
+      } else {
+        // Fallback si no existe el sistema de equipamiento
+        this.player.inventory = this.player.inventory || [];
+        this.player.inventory.push(item);
+      }
       
       // Notificar a la UI
       this.events.emit('player-item-obtained', item);

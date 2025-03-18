@@ -1,4 +1,6 @@
 // src/entities/Entity.js
+import Phaser from 'phaser';
+
 export default class Entity extends Phaser.GameObjects.Container {
   constructor(scene, x, y, stats = {}) {
     super(scene, x, y);

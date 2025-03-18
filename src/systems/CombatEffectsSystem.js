@@ -1,8 +1,23 @@
 // src/systems/CombatEffectsSystem.js
+/**
+ * Sistema que gestiona los efectos visuales de combate
+ */
 export default class CombatEffectsSystem {
+    /**
+     * Inicializa el sistema de efectos de combate
+     * @param {Phaser.Scene} scene - Escena de Phaser
+     */
     constructor(scene) {
       this.scene = scene;
       this.activeEffects = [];
+    }
+  
+    /**
+     * Inicializa el sistema con datos del juego
+     * @param {Object} gameData - Datos iniciales
+     */
+    initialize(gameData) {
+      // Nada específico por ahora
     }
   
     /**
@@ -574,6 +589,180 @@ export default class CombatEffectsSystem {
             this.activeEffects.splice(index, 1);
           }
         }
+      });
+    }
+  
+    /**
+     * Crea un efecto visual para la aparición de un jefe
+     * @param {Enemy} boss - Jefe que aparece
+     */
+    createBossSpawnEffect(boss) {
+      // Crear onda expansiva
+      const wave = this.scene.add.circle(boss.x, boss.y, 10, 0xff0000, 0.3);
+      wave.setDepth(5);
+      
+      // Animar onda
+      this.scene.tweens.add({
+        targets: wave,
+        radius: 100,
+        alpha: 0,
+        duration: 1000,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          wave.destroy();
+        }
+      });
+      
+      // Flash en el jefe
+      if (boss.sprite) {
+        this.scene.tweens.add({
+          targets: boss.sprite,
+          alpha: 0.3,
+          yoyo: true,
+          repeat: 3,
+          duration: 150
+        });
+      }
+      
+      // Texto de alerta
+      const bossText = this.scene.add.text(boss.x, boss.y - 40, '¡JEFE!', {
+        font: 'bold 24px Arial',
+        fill: '#ff0000',
+        stroke: '#000000',
+        strokeThickness: 4
+      });
+      bossText.setOrigin(0.5);
+      bossText.setDepth(20);
+      
+      // Animar texto
+      this.scene.tweens.add({
+        targets: bossText,
+        y: boss.y - 80,
+        alpha: 0,
+        duration: 2000,
+        ease: 'Power2',
+        onComplete: () => {
+          bossText.destroy();
+        }
+      });
+    }
+  
+    /**
+     * Crea un efecto para la invocación de minions
+     * @param {Enemy} summoner - Enemigo que invoca
+     * @param {Array} minions - Minions invocados
+     */
+    createSummonEffect(summoner, minions) {
+      minions.forEach((minion, index) => {
+        // Posición inicial cerca del invocador
+        const originalX = minion.x;
+        const originalY = minion.y;
+        minion.x = summoner.x;
+        minion.y = summoner.y;
+        minion.alpha = 0.2;
+        
+        // Animar aparición
+        this.scene.tweens.add({
+          targets: minion,
+          x: originalX,
+          y: originalY,
+          alpha: 1,
+          duration: 500 + index * 100,
+          ease: 'Power2',
+          onComplete: () => {
+            // Crear círculo de aparición
+            const circle = this.scene.add.circle(
+              originalX,
+              originalY,
+              10,
+              0x00ff00,
+              0.5
+            );
+            
+            // Animar círculo
+            this.scene.tweens.add({
+              targets: circle,
+              radius: 30,
+              alpha: 0,
+              duration: 300,
+              onComplete: () => {
+                circle.destroy();
+              }
+            });
+          }
+        });
+      });
+    }
+  
+    /**
+     * Crea un efecto para la división de un enemigo
+     * @param {Enemy} parent - Enemigo que se divide
+     * @param {Array} children - Enemigos resultantes
+     */
+    createSplitEffect(parent, children) {
+      // Partículas en el punto de división
+      const particles = [];
+      
+      // Crear partículas
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        const distance = 20 + Math.random() * 10;
+        const speed = 0.5 + Math.random() * 0.5;
+        
+        const particle = this.scene.add.circle(
+          parent.x,
+          parent.y,
+          2 + Math.random() * 2,
+          0x00ff00,
+          0.7
+        );
+        particle.setDepth(6);
+        
+        // Animar partícula
+        this.scene.tweens.add({
+          targets: particle,
+          x: parent.x + Math.cos(angle) * distance,
+          y: parent.y + Math.sin(angle) * distance,
+          alpha: 0,
+          duration: 600 / speed,
+          ease: 'Power2',
+          onComplete: () => {
+            particle.destroy();
+          }
+        });
+        
+        particles.push(particle);
+      }
+      
+      // Líneas de conexión entre el padre y los hijos
+      children.forEach(child => {
+        const line = this.scene.add.line(
+          0, 0,
+          parent.x, parent.y,
+          child.x, child.y,
+          0x00ff00,
+          0.8
+        );
+        line.setOrigin(0, 0);
+        
+        // Desvanecer línea
+        this.scene.tweens.add({
+          targets: line,
+          alpha: 0,
+          duration: 400,
+          onComplete: () => {
+            line.destroy();
+          }
+        });
+        
+        // Hacer que el hijo sea inicialmente pequeño y crezca
+        child.setScale(0.3);
+        this.scene.tweens.add({
+          targets: child,
+          scale: 1,
+          duration: 400,
+          ease: 'Back.easeOut'
+        });
       });
     }
   

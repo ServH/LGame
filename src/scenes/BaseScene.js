@@ -1,6 +1,5 @@
-// src/scenes/BaseScene.js
+// src/scenes/BaseScene.js - Mejora de integración con GameScene
 import Phaser from 'phaser';
-import SmokeParticle from '../entities/SmokeParticle';
 
 export default class BaseScene extends Phaser.Scene {
   constructor() {
@@ -15,9 +14,20 @@ export default class BaseScene extends Phaser.Scene {
     // Estructuras de la base
     this.structures = [];
     
+    // Nivel de mejoras de la base
+    this.baseUpgrades = {
+      campfire: 0, // Mejora la regeneración de vida
+      forge: 0,    // Mejora el daño
+      library: 0,  // Mejora la experiencia ganada
+      garden: 0    // Mejora la cantidad de oro obtenido
+    };
+    
     // UI Elements
     this.menuItems = [];
     this.selectedMenuItem = 0;
+    
+    // Estado de transición
+    this.isTransitioning = false;
   }
 
   /**
@@ -37,6 +47,9 @@ export default class BaseScene extends Phaser.Scene {
     };
     
     this.rewardData = data.reward || null;
+    
+    // Recuperar el nivel de mejoras guardado en localStorage si existe
+    this.loadBaseUpgrades();
   }
 
   create() {
@@ -58,7 +71,37 @@ export default class BaseScene extends Phaser.Scene {
     // Configurar controles
     this.setupControls();
     
+    // Aplicar recompensas si existen
+    if (this.rewardData) {
+      this.applyRewards();
+    }
+    
     console.log('BaseScene iniciada');
+  }
+
+  /**
+   * Carga las mejoras de la base desde localStorage
+   */
+  loadBaseUpgrades() {
+    try {
+      const savedUpgrades = localStorage.getItem('baseUpgrades');
+      if (savedUpgrades) {
+        this.baseUpgrades = JSON.parse(savedUpgrades);
+      }
+    } catch (e) {
+      console.error('Error cargando mejoras de la base:', e);
+    }
+  }
+
+  /**
+   * Guarda las mejoras de la base en localStorage
+   */
+  saveBaseUpgrades() {
+    try {
+      localStorage.setItem('baseUpgrades', JSON.stringify(this.baseUpgrades));
+    } catch (e) {
+      console.error('Error guardando mejoras de la base:', e);
+    }
   }
 
   /**
@@ -133,34 +176,60 @@ export default class BaseScene extends Phaser.Scene {
     // Definición de estructuras
     const structuresData = [
       {
-        id: 'tent',
-        name: 'Tienda de Campaña',
-        description: 'Descansar y recuperar vida',
-        x: width / 4,
+        id: 'campfire',
+        name: 'Hoguera',
+        description: 'Mejora la regeneración de vida',
+        x: width / 5,
         y: height - 120,
-        width: 80,
-        height: 70,
-        color: 0x884400
+        width: 60,
+        height: 50,
+        color: 0x884400,
+        level: this.baseUpgrades.campfire || 0,
+        upgradeCost: level => 10 + (level * 5),
+        maxLevel: 5,
+        upgradeEffect: 'Regeneración de vida +0.2% por segundo por nivel'
       },
       {
         id: 'forge',
         name: 'Herrería',
-        description: 'Mejorar equipamiento',
-        x: width / 2,
+        description: 'Mejora el daño causado',
+        x: 2 * width / 5,
         y: height - 130,
-        width: 100,
-        height: 90,
-        color: 0x666666
+        width: 80,
+        height: 70,
+        color: 0x666666,
+        level: this.baseUpgrades.forge || 0,
+        upgradeCost: level => 15 + (level * 8),
+        maxLevel: 5,
+        upgradeEffect: 'Daño +5% por nivel'
       },
       {
         id: 'library',
         name: 'Biblioteca',
-        description: 'Desbloquear nuevos tiles',
-        x: 3 * width / 4,
+        description: 'Aumenta la experiencia ganada',
+        x: 3 * width / 5,
         y: height - 110,
-        width: 90,
+        width: 70,
         height: 60,
-        color: 0x885500
+        color: 0x885500,
+        level: this.baseUpgrades.library || 0,
+        upgradeCost: level => 12 + (level * 7),
+        maxLevel: 5,
+        upgradeEffect: 'Experiencia +10% por nivel'
+      },
+      {
+        id: 'garden',
+        name: 'Jardín',
+        description: 'Aumenta el oro obtenido',
+        x: 4 * width / 5,
+        y: height - 100,
+        width: 80,
+        height: 40,
+        color: 0x227722,
+        level: this.baseUpgrades.garden || 0,
+        upgradeCost: level => 8 + (level * 6),
+        maxLevel: 5,
+        upgradeEffect: 'Oro +8% por nivel'
       }
     ];
     
@@ -175,52 +244,134 @@ export default class BaseScene extends Phaser.Scene {
         data.color
       );
       
-      // Techo (para tienda y biblioteca)
-      if (data.id === 'tent' || data.id === 'library') {
-        const roof = this.add.triangle(
-          data.x,
-          data.y - data.height / 2,
-          -data.width / 2 - 10, 0,
-          data.width / 2 + 10, 0,
-          0, -40,
-          data.id === 'tent' ? 0xaa5500 : 0xaa7700
-        );
+      // Decoraciones específicas según el tipo
+      switch (data.id) {
+        case 'campfire':
+          // Crear hoguera
+          const fireBase = this.add.polygon(
+            data.x, data.y + data.height/2 - 5,
+            [0, 0, -15, 10, 15, 10],
+            0x553311
+          );
+          
+          // Llamas
+          const fire = this.add.polygon(
+            data.x, data.y + data.height/2 - 15,
+            [0, -20, -10, 0, 10, 0],
+            0xff6600
+          );
+          
+          // Animar llamas
+          this.tweens.add({
+            targets: fire,
+            scaleX: 0.8,
+            scaleY: 1.2,
+            duration: 500,
+            yoyo: true,
+            repeat: -1
+          });
+          break;
+          
+        case 'forge':
+          // Chimenea
+          this.add.rectangle(
+            data.x + 30,
+            data.y - data.height/2 - 20,
+            20,
+            30,
+            0x555555
+          );
+          
+          // Yunque
+          this.add.rectangle(
+            data.x - 15,
+            data.y + 15,
+            30,
+            10,
+            0x444444
+          );
+          break;
+          
+        case 'library':
+          // Techo
+          this.add.triangle(
+            data.x,
+            data.y - data.height/2,
+            -data.width/2 - 10, 0,
+            data.width/2 + 10, 0,
+            0, -30,
+            0xaa7700
+          );
+          
+          // Libros en estantes (rectángulos pequeños de colores)
+          for (let i = 0; i < 3; i++) {
+            const y = data.y - data.height/4 + i * 15;
+            for (let j = 0; j < 5; j++) {
+              const bookColor = Phaser.Utils.Array.GetRandom([
+                0x884400, 0x336699, 0x663399, 0x339944
+              ]);
+              this.add.rectangle(
+                data.x - data.width/3 + j * 12,
+                y,
+                8,
+                10,
+                bookColor
+              );
+            }
+          }
+          break;
+          
+        case 'garden':
+          // Plantas
+          for (let i = 0; i < 5; i++) {
+            const x = data.x - data.width/2 + 10 + i * (data.width - 20)/4;
+            
+            // Tallo
+            this.add.rectangle(
+              x,
+              data.y - 5,
+              2,
+              20,
+              0x227722
+            );
+            
+            // Hojas/flores
+            const plantTop = this.add.circle(
+              x,
+              data.y - 20,
+              5,
+              Phaser.Utils.Array.GetRandom([0x22aa22, 0x99dd00, 0xddff00])
+            );
+            
+            // Animar plantas
+            this.tweens.add({
+              targets: plantTop,
+              y: plantTop.y - 3,
+              duration: 2000 + i * 300,
+              yoyo: true,
+              repeat: -1,
+              ease: 'Sine.easeInOut'
+            });
+          }
+          break;
       }
       
-      // Chimenea (para herrería)
-      if (data.id === 'forge') {
-        // Chimenea
-        this.add.rectangle(
-          data.x + 30,
-          data.y - data.height / 2 - 20,
-          20,
-          40,
-          0x555555
-        );
-        
-        // Humo con forma correcta de la API de partículas
-        const smokeParticles = this.add.particles(0, 0, 'placeholder', {
-          x: data.x + 30,
-          y: data.y - data.height / 2 - 40,
-          speed: { min: 5, max: 15 },
-          angle: { min: 250, max: 290 },
-          scale: { start: 1, end: 0 },
-          alpha: { start: 0.3, end: 0 },
-          lifespan: 2000,
-          frequency: 500,
-          quantity: 1,
-          blendMode: 'ADD',
-          emitZone: {
-            type: 'random',
-            source: new Phaser.Geom.Circle(0, 0, 5)
-          }
-        });
-      }
+      // Indicador de nivel
+      const levelText = this.add.text(
+        data.x,
+        data.y - data.height/2 - 15,
+        `Niv. ${data.level}/${data.maxLevel}`,
+        {
+          font: '12px Arial',
+          fill: data.level >= data.maxLevel ? '#ffff00' : '#ffffff'
+        }
+      );
+      levelText.setOrigin(0.5);
       
       // Nombre de la estructura
       const nameText = this.add.text(
         data.x,
-        data.y + data.height / 2 + 15,
+        data.y + data.height/2 + 15,
         data.name,
         {
           font: '14px Arial',
@@ -235,8 +386,18 @@ export default class BaseScene extends Phaser.Scene {
         structure.setStrokeStyle(2, 0xffffff);
         nameText.setStyle({ font: 'bold 14px Arial' });
         
-        // Mostrar descripción
-        this.showTooltip(data.x, data.y - data.height / 2 - 20, data.description);
+        // Mostrar descripción y efecto de mejora
+        let tooltipText = `${data.description}\n` + 
+                          `${data.upgradeEffect}\n` + 
+                          `Nivel actual: ${data.level}/${data.maxLevel}`;
+        
+        if (data.level < data.maxLevel) {
+          tooltipText += `\nMejora: ${data.upgradeCost(data.level)} oro`;
+        } else {
+          tooltipText += '\n¡Nivel máximo!';
+        }
+        
+        this.showTooltip(data.x, data.y - data.height/2 - 40, tooltipText);
       });
       
       structure.on('pointerout', () => {
@@ -246,7 +407,7 @@ export default class BaseScene extends Phaser.Scene {
       });
       
       structure.on('pointerdown', () => {
-        this.openStructureMenu(data.id);
+        this.openStructureMenu(data);
       });
       
       // Guardar referencia
@@ -254,6 +415,7 @@ export default class BaseScene extends Phaser.Scene {
         id: data.id,
         structure,
         nameText,
+        levelText,
         data
       });
     });
@@ -335,9 +497,9 @@ export default class BaseScene extends Phaser.Scene {
     // Información del jugador
     const stats = [
       { label: 'Nivel', value: this.playerData.level },
-      { label: 'Vida', value: `${this.playerData.health}/${this.playerData.maxHealth}` },
-      { label: 'Ataque', value: this.playerData.attack },
-      { label: 'Defensa', value: this.playerData.defense },
+      { label: 'Vida', value: `${Math.ceil(this.playerData.health)}/${this.playerData.maxHealth}` },
+      { label: 'Ataque', value: this.playerData.attack.toFixed(1) },
+      { label: 'Defensa', value: this.playerData.defense.toFixed(1) },
       { label: 'Velocidad', value: this.playerData.speed.toFixed(1) },
       { label: 'Oro', value: this.playerData.gold }
     ];
@@ -380,13 +542,19 @@ export default class BaseScene extends Phaser.Scene {
       this.hideTooltip();
     }
     
+    // Calcular dimensiones según el texto
+    const lines = text.split('\n');
+    const maxLineLength = Math.max(...lines.map(line => line.length));
+    const tooltipWidth = Math.max(200, maxLineLength * 7);
+    const tooltipHeight = 20 + lines.length * 16;
+    
     // Fondo
     this.tooltip = {
       bg: this.add.rectangle(
         x,
         y,
-        text.length * 7 + 20,
-        30,
+        tooltipWidth,
+        tooltipHeight,
         0x000000,
         0.8
       ),
@@ -396,7 +564,8 @@ export default class BaseScene extends Phaser.Scene {
         text,
         {
           font: '12px Arial',
-          fill: '#ffffff'
+          fill: '#ffffff',
+          align: 'center'
         }
       )
     };
@@ -452,7 +621,7 @@ export default class BaseScene extends Phaser.Scene {
     welcomeText.setOrigin(0.5);
     
     // Mostrar recompensas si hay
-    if (this.rewardData) {
+    if (this.rewardData && (this.rewardData.gold > 0 || this.rewardData.experience > 0)) {
       const rewardText = this.add.text(
         width / 2,
         height / 4 + 50,
@@ -492,6 +661,48 @@ export default class BaseScene extends Phaser.Scene {
   }
 
   /**
+   * Aplica las recompensas obtenidas
+   */
+  applyRewards() {
+    if (!this.rewardData) return;
+    
+    // Añadir oro y experiencia
+    this.playerData.gold += this.rewardData.gold || 0;
+    
+    // La experiencia maneja subida de nivel si corresponde
+    if (this.rewardData.experience > 0) {
+      let expRemaining = this.rewardData.experience;
+      
+      while (expRemaining > 0) {
+        const expToLevel = this.playerData.experienceToNextLevel - this.playerData.experience;
+        
+        if (expRemaining >= expToLevel) {
+          // Subir de nivel
+          this.playerData.level++;
+          this.playerData.experience = 0;
+          expRemaining -= expToLevel;
+          
+          // Actualizar exp para siguiente nivel
+          this.playerData.experienceToNextLevel = Math.floor(10 * Math.pow(1.5, this.playerData.level - 1));
+          
+          // Mejorar estadísticas
+          this.playerData.maxHealth += 5;
+          this.playerData.health = this.playerData.maxHealth;
+          this.playerData.attack += 1;
+          this.playerData.defense += 0.5;
+        } else {
+          // Añadir exp restante
+          this.playerData.experience += expRemaining;
+          expRemaining = 0;
+        }
+      }
+    }
+    
+    // Actualizar la UI
+    this.refreshUI();
+  }
+
+  /**
    * Configura los controles
    */
   setupControls() {
@@ -504,103 +715,26 @@ export default class BaseScene extends Phaser.Scene {
     
     // Tecla Enter para iniciar expedición
     this.input.keyboard.on('keydown-ENTER', () => {
-      this.startNewExpedition();
+      if (!this.structureMenu && !this.isTransitioning) {
+        this.startNewExpedition();
+      }
     });
   }
 
   /**
    * Abre el menú de una estructura
-   * @param {string} structureId - ID de la estructura
+   * @param {Object} structureData - Datos de la estructura
    */
-  openStructureMenu(structureId) {
+  openStructureMenu(structureData) {
     const { width, height } = this.cameras.main;
     
     // Si ya hay un menú abierto, cerrarlo
     if (this.structureMenu) {
       this.closeStructureMenu();
+      return;
     }
     
-    // Estructura y opciones según ID
-    let title = '';
-    let options = [];
-    
-    switch (structureId) {
-      case 'tent':
-        title = 'Tienda de Campaña';
-        options = [
-          {
-            label: 'Descansar (Recuperar toda la vida)',
-            action: () => {
-              this.playerData.health = this.playerData.maxHealth;
-              this.showToast('¡Vida completamente recuperada!');
-              this.closeStructureMenu();
-              this.refreshUI();
-            }
-          }
-        ];
-        break;
-        
-      case 'forge':
-        title = 'Herrería';
-        options = [
-          {
-            label: `Mejorar Ataque (15 oro)`,
-            disabled: this.playerData.gold < 15,
-            action: () => {
-              if (this.playerData.gold >= 15) {
-                this.playerData.gold -= 15;
-                this.playerData.attack += 1;
-                this.showToast('¡Ataque mejorado!');
-                this.refreshUI();
-              }
-            }
-          },
-          {
-            label: `Mejorar Defensa (15 oro)`,
-            disabled: this.playerData.gold < 15,
-            action: () => {
-              if (this.playerData.gold >= 15) {
-                this.playerData.gold -= 15;
-                this.playerData.defense += 1;
-                this.showToast('¡Defensa mejorada!');
-                this.refreshUI();
-              }
-            }
-          },
-          {
-            label: `Mejorar Vida Máxima (20 oro)`,
-            disabled: this.playerData.gold < 20,
-            action: () => {
-              if (this.playerData.gold >= 20) {
-                this.playerData.gold -= 20;
-                this.playerData.maxHealth += 10;
-                this.playerData.health += 10;
-                this.showToast('¡Vida máxima aumentada!');
-                this.refreshUI();
-              }
-            }
-          }
-        ];
-        break;
-        
-      case 'library':
-        title = 'Biblioteca';
-        options = [
-          {
-            label: 'Estudiar tiles (Próximamente)',
-            disabled: true,
-            action: () => {}
-          },
-          {
-            label: 'Investigar habilidades (Próximamente)',
-            disabled: true,
-            action: () => {}
-          }
-        ];
-        break;
-    }
-    
-    // Crear menú
+    // Crear panel de menú
     this.structureMenu = {
       overlay: this.add.rectangle(
         width / 2,
@@ -621,77 +755,167 @@ export default class BaseScene extends Phaser.Scene {
       title: this.add.text(
         width / 2,
         height / 2 - 120,
-        title,
+        structureData.name,
         {
           font: 'bold 24px Arial',
           fill: '#ffffff'
         }
       ),
-      options: [],
-      selectedIndex: 0
+      description: this.add.text(
+        width / 2,
+        height / 2 - 80,
+        structureData.description,
+        {
+          font: '16px Arial',
+          fill: '#ffffff',
+          align: 'center'
+        }
+      ),
+      effect: this.add.text(
+        width / 2,
+        height / 2 - 50,
+        structureData.upgradeEffect,
+        {
+          font: '14px Arial',
+          fill: '#aaaaaa',
+          align: 'center'
+        }
+      ),
+      level: this.add.text(
+        width / 2,
+        height / 2 - 20,
+        `Nivel: ${structureData.level}/${structureData.maxLevel}`,
+        {
+          font: 'bold 16px Arial',
+          fill: structureData.level >= structureData.maxLevel ? '#ffff00' : '#ffffff',
+          align: 'center'
+        }
+      ),
+      options: []
     };
     
     // Configurar objetos del menú
     this.structureMenu.panel.setStrokeStyle(2, 0xaaaaaa);
     this.structureMenu.title.setOrigin(0.5);
+    this.structureMenu.description.setOrigin(0.5);
+    this.structureMenu.effect.setOrigin(0.5);
+    this.structureMenu.level.setOrigin(0.5);
     
-    // Crear opciones
-    options.forEach((option, index) => {
-      const y = height / 2 - 60 + index * 40;
+    // Botón de mejora si no está al máximo nivel
+    if (structureData.level < structureData.maxLevel) {
+      const upgradeCost = structureData.upgradeCost(structureData.level);
+      const canUpgrade = this.playerData.gold >= upgradeCost;
       
-      // Fondo de la opción
-      const optionBg = this.add.rectangle(
+      const upgradeButton = this.add.rectangle(
         width / 2,
-        y,
-        350,
-        30,
-        0x333333,
-        option.disabled ? 0.3 : 0.6
+        height / 2 + 30,
+        200,
+        40,
+        canUpgrade ? 0x006600 : 0x660000,
+        canUpgrade ? 0.7 : 0.4
       );
       
-      // Texto de la opción
-      const optionText = this.add.text(
+      const upgradeText = this.add.text(
         width / 2,
-        y,
-        option.label,
+        height / 2 + 30,
+        `Mejorar (${upgradeCost} oro)`,
         {
           font: '16px Arial',
-          fill: option.disabled ? '#777777' : '#ffffff'
+          fill: canUpgrade ? '#ffffff' : '#aaaaaa'
         }
       );
-      optionText.setOrigin(0.5);
+      upgradeText.setOrigin(0.5);
       
-      // Hacer interactivo si no está deshabilitado
-      if (!option.disabled) {
-        optionBg.setInteractive();
+      // Hacer interactivo solo si puede mejorar
+      if (canUpgrade) {
+        upgradeButton.setInteractive();
         
-        optionBg.on('pointerover', () => {
-          optionBg.setFillStyle(0x555555, 0.8);
-          this.structureMenu.selectedIndex = index;
+        upgradeButton.on('pointerover', () => {
+          upgradeButton.setFillStyle(0x008800, 0.9);
         });
         
-        optionBg.on('pointerout', () => {
-          optionBg.setFillStyle(0x333333, 0.6);
+        upgradeButton.on('pointerout', () => {
+          upgradeButton.setFillStyle(0x006600, 0.7);
         });
         
-        optionBg.on('pointerdown', () => {
-          option.action();
+        upgradeButton.on('pointerdown', () => {
+          this.upgradeStructure(structureData);
         });
       }
       
-      // Guardar referencia
       this.structureMenu.options.push({
-        bg: optionBg,
-        text: optionText,
-        action: option.action,
-        disabled: option.disabled
+        button: upgradeButton,
+        text: upgradeText
       });
-    });
+    } else {
+      // Texto de nivel máximo
+      const maxText = this.add.text(
+        width / 2,
+        height / 2 + 30,
+        '¡Nivel Máximo Alcanzado!',
+        {
+          font: 'bold 16px Arial',
+          fill: '#ffff00'
+        }
+      );
+      maxText.setOrigin(0.5);
+      
+      this.structureMenu.options.push({
+        text: maxText
+      });
+    }
+    
+    // Acciones especiales según la estructura
+    switch (structureData.id) {
+      case 'campfire':
+        // Opción para descansar y recuperar vida
+        const restButton = this.add.rectangle(
+          width / 2,
+          height / 2 + 80,
+          200,
+          40,
+          0x555555,
+          0.7
+        );
+        restButton.setInteractive();
+        
+        const restText = this.add.text(
+          width / 2,
+          height / 2 + 80,
+          'Descansar (recuperar vida)',
+          {
+            font: '16px Arial',
+            fill: '#ffffff'
+          }
+        );
+        restText.setOrigin(0.5);
+        
+        restButton.on('pointerover', () => {
+          restButton.setFillStyle(0x777777, 0.9);
+        });
+        
+        restButton.on('pointerout', () => {
+          restButton.setFillStyle(0x555555, 0.7);
+        });
+        
+        restButton.on('pointerdown', () => {
+          this.playerData.health = this.playerData.maxHealth;
+          this.showToast('¡Vida completamente recuperada!');
+          this.refreshUI();
+          this.closeStructureMenu();
+        });
+        
+        this.structureMenu.options.push({
+          button: restButton,
+          text: restText
+        });
+        break;
+    }
     
     // Botón de cerrar
     const closeButton = this.add.rectangle(
       width / 2,
-      height / 2 + 120,
+      height / 2 + 130,
       100,
       30,
       0x555555
@@ -700,7 +924,7 @@ export default class BaseScene extends Phaser.Scene {
     
     const closeText = this.add.text(
       width / 2,
-      height / 2 + 120,
+      height / 2 + 130,
       'Cerrar',
       {
         font: '16px Arial',
@@ -726,29 +950,80 @@ export default class BaseScene extends Phaser.Scene {
     this.structureMenu.closeText = closeText;
     
     // Efecto de entrada
-    this.structureMenu.overlay.alpha = 0;
-    this.structureMenu.panel.alpha = 0;
-    this.structureMenu.title.alpha = 0;
-    this.structureMenu.closeButton.alpha = 0;
-    this.structureMenu.closeText.alpha = 0;
+    const menuElements = [
+      this.structureMenu.overlay, 
+      this.structureMenu.panel, 
+      this.structureMenu.title, 
+      this.structureMenu.description,
+      this.structureMenu.effect,
+      this.structureMenu.level,
+      this.structureMenu.closeButton, 
+      this.structureMenu.closeText
+    ];
     
     this.structureMenu.options.forEach(option => {
-      option.bg.alpha = 0;
-      option.text.alpha = 0;
+      if (option.button) menuElements.push(option.button);
+      if (option.text) menuElements.push(option.text);
     });
     
+    menuElements.forEach(element => element.alpha = 0);
+    
     this.tweens.add({
-      targets: [
-        this.structureMenu.overlay,
-        this.structureMenu.panel,
-        this.structureMenu.title,
-        this.structureMenu.closeButton,
-        this.structureMenu.closeText,
-        ...this.structureMenu.options.map(o => [o.bg, o.text]).flat()
-      ],
+      targets: menuElements,
       alpha: 1,
       duration: 200
     });
+  }
+
+  /**
+   * Mejora una estructura
+   * @param {Object} structureData - Datos de la estructura
+   */
+  upgradeStructure(structureData) {
+    // Verificar que puede mejorar
+    const currentLevel = this.baseUpgrades[structureData.id] || 0;
+    const maxLevel = structureData.maxLevel;
+    
+    if (currentLevel >= maxLevel) {
+      this.showToast('Esta estructura ya está al nivel máximo');
+      return;
+    }
+    
+    // Calcular costo
+    const upgradeCost = structureData.upgradeCost(currentLevel);
+    
+    // Verificar oro suficiente
+    if (this.playerData.gold < upgradeCost) {
+      this.showToast('No tienes suficiente oro para esta mejora');
+      return;
+    }
+    
+    // Aplicar mejora
+    this.baseUpgrades[structureData.id] = currentLevel + 1;
+    
+    // Restar oro
+    this.playerData.gold -= upgradeCost;
+    
+    // Actualizar nivel en la estructura visual
+    const structureObj = this.structures.find(s => s.id === structureData.id);
+    if (structureObj) {
+      structureObj.levelText.setText(`Niv. ${currentLevel + 1}/${maxLevel}`);
+      if (currentLevel + 1 >= maxLevel) {
+        structureObj.levelText.setStyle({ font: '12px Arial', fill: '#ffff00' });
+      }
+    }
+    
+    // Guardar mejoras
+    this.saveBaseUpgrades();
+    
+    // Mostrar mensaje
+    this.showToast(`¡${structureData.name} mejorada al nivel ${currentLevel + 1}!`);
+    
+    // Cerrar menú
+    this.closeStructureMenu();
+    
+    // Actualizar UI
+    this.refreshUI();
   }
 
   /**
@@ -757,29 +1032,32 @@ export default class BaseScene extends Phaser.Scene {
   closeStructureMenu() {
     if (!this.structureMenu) return;
     
+    // Recopilar todos los elementos
+    const elements = [
+      this.structureMenu.overlay, 
+      this.structureMenu.panel, 
+      this.structureMenu.title, 
+      this.structureMenu.description,
+      this.structureMenu.effect,
+      this.structureMenu.level,
+      this.structureMenu.closeButton, 
+      this.structureMenu.closeText
+    ];
+    
+    this.structureMenu.options.forEach(option => {
+      if (option.button) elements.push(option.button);
+      if (option.text) elements.push(option.text);
+    });
+    
     // Efecto de salida
     this.tweens.add({
-      targets: [
-        this.structureMenu.overlay,
-        this.structureMenu.panel,
-        this.structureMenu.title,
-        this.structureMenu.closeButton,
-        this.structureMenu.closeText,
-        ...this.structureMenu.options.map(o => [o.bg, o.text]).flat()
-      ],
+      targets: elements,
       alpha: 0,
       duration: 200,
       onComplete: () => {
         // Destruir elementos
-        this.structureMenu.overlay.destroy();
-        this.structureMenu.panel.destroy();
-        this.structureMenu.title.destroy();
-        this.structureMenu.closeButton.destroy();
-        this.structureMenu.closeText.destroy();
-        
-        this.structureMenu.options.forEach(option => {
-          option.bg.destroy();
-          option.text.destroy();
+        elements.forEach(element => {
+          if (element) element.destroy();
         });
         
         this.structureMenu = null;
@@ -840,11 +1118,17 @@ export default class BaseScene extends Phaser.Scene {
    * Inicia una nueva expedición
    */
   startNewExpedition() {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+    
     // Transición de salida
     this.cameras.main.fade(500, 0, 0, 0, false, (camera, progress) => {
       if (progress === 1) {
         // Iniciar escena de juego con los datos actualizados del jugador
-        this.scene.start('GameScene', { playerData: this.playerData });
+        this.scene.start('GameScene', { 
+          playerData: this.playerData,
+          baseUpgrades: this.baseUpgrades
+        });
       }
     });
   }
