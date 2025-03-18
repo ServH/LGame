@@ -1,6 +1,7 @@
+// src/scenes/BootScene.js
 import Phaser from 'phaser';
 
-class BootScene extends Phaser.Scene {
+export default class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: 'BootScene' });
   }
@@ -38,13 +39,15 @@ class BootScene extends Phaser.Scene {
       loadingText.destroy();
     });
     
-    // Cargar assets iniciales (placeholder)
+    // Cargar assets iniciales
     this.load.image('placeholder', 'assets/images/placeholder.png');
   }
 
   create() {
-    this.scene.start('MainMenuScene');
+    // Transición elegante al menú principal
+    this.cameras.main.fadeIn(500, 0, 0, 0);
+    this.time.delayedCall(1000, () => {
+      this.scene.start('MainMenuScene');
+    });
   }
 }
-
-export default BootScene;

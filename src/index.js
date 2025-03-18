@@ -1,8 +1,10 @@
+// src/index.js
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene';
 import MainMenuScene from './scenes/MainMenuScene';
 import GameScene from './scenes/GameScene';
 import UIScene from './scenes/UIScene';
+import BaseScene from './scenes/BaseScene';
 
 // Configuración global del juego
 const config = {
@@ -22,7 +24,7 @@ const config = {
       debug: false
     }
   },
-  scene: [BootScene, MainMenuScene, GameScene, UIScene]
+  scene: [BootScene, MainMenuScene, GameScene, UIScene, BaseScene]
 };
 
 // Iniciar el juego con la configuración
